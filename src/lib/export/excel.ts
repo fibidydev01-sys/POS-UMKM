@@ -1,0 +1,133 @@
+"use client";
+
+import * as XLSX from "xlsx";
+import { supabase } from "../supabase/client";
+import type { UmkmConfig } from "../db/config";
+import type { Transaksi, TransactionItem } from "../db/transaksi";
+import { formatAngka } from "../utils/currency";
+import { formatTanggal, formatTanggalJam, formatBulanTahun } from "../utils/date";
+
+export const BACKUP_SHEET_NAME = "BACKUP_DATA";
+
+// Superset kolom agar transaksi + item bisa direkonstruksi penuh saat import.
+export const BACKUP_HEADERS = [
+  "transaksi_id", "nomor_order", "timestamp",
+  "subtotal_trx", "diskon_persen_trx", "diskon_nominal_trx", "grand_total",
+  "metode_bayar", "catatan",
+  "nama_produk", "menu_item_id", "harga_satuan", "qty",
+  "diskon_persen_item", "diskon_nominal_item", "subtotal_item", "final_price_item",
+] as const;
+
+export interface HasilExport {
+  ok: boolean;
+  pesan: string;
+  jumlahBaris?: number;
+}
+
+export async function exportDanDownload(
+  umkmId: string,
+  config: UmkmConfig | null
+): Promise<HasilExport> {
+  try {
+    const [{ data: trxData, error: e1 }, { data: itemData, error: e2 }] = await Promise.all([
+      supabase.from("transaksi").select("*").eq("umkm_id", umkmId).order("timestamp", { ascending: true }),
+      supabase.from("transaction_items").select("*").eq("umkm_id", umkmId),
+    ]);
+    if (e1) throw e1;
+    if (e2) throw e2;
+
+    const transaksi = (trxData ?? []) as Transaksi[];
+    const items = (itemData ?? []) as TransactionItem[];
+    if (transaksi.length === 0) {
+      return { ok: false, pesan: "Belum ada transaksi untuk diekspor." };
+    }
+
+    const itemsByTrx = new Map<string, TransactionItem[]>();
+    for (const it of items) {
+      const arr = itemsByTrx.get(it.transaksi_id) ?? [];
+      arr.push(it);
+      itemsByTrx.set(it.transaksi_id, arr);
+    }
+
+    const namaUmkm = config?.nama_umkm || "UMKM";
+    const wb = XLSX.utils.book_new();
+
+    // ── Sheet 1: Laporan (human-readable) ──
+    const aoa: (string | number)[][] = [];
+    aoa.push([`Nama UMKM`, namaUmkm]);
+    aoa.push([`Periode`, formatBulanTahun(new Date())]);
+    aoa.push([`Dicetak`, formatTanggalJam(new Date())]);
+    aoa.push([]);
+    aoa.push(["Tgl", "No", "Produk", "Qty", "Harga", "Diskon", "Subtotal"]);
+
+    let totalOmzet = 0;
+    let totalDiskon = 0;
+    for (const t of transaksi) {
+      const its = itemsByTrx.get(t.id) ?? [];
+      its.forEach((it, idx) => {
+        aoa.push([
+          idx === 0 ? formatTanggal(t.timestamp) : "",
+          idx === 0 ? `#${t.nomor_order}` : "",
+          it.nama_produk,
+          it.qty,
+          formatAngka(it.harga_satuan),
+          it.diskon_nominal > 0 ? `-${formatAngka(it.diskon_nominal)}` : "-",
+          formatAngka(it.final_price_item),
+        ]);
+      });
+      aoa.push(["", "", "GRAND TOTAL", "", "",
+        t.diskon_nominal > 0 ? `-${formatAngka(t.diskon_nominal)}` : "-",
+        formatAngka(t.grand_total)]);
+      aoa.push([]);
+      totalOmzet += t.grand_total;
+      totalDiskon += t.diskon_nominal + its.reduce((s, i) => s + i.diskon_nominal, 0);
+    }
+    aoa.push([]);
+    aoa.push(["SUMMARY"]);
+    aoa.push(["Total Transaksi", transaksi.length]);
+    aoa.push(["Total Omzet", `Rp ${formatAngka(totalOmzet)}`]);
+    aoa.push(["Total Diskon", `Rp ${formatAngka(totalDiskon)}`]);
+
+    const ws1 = XLSX.utils.aoa_to_sheet(aoa);
+    ws1["!cols"] = [{ wch: 12 }, { wch: 6 }, { wch: 24 }, { wch: 6 }, { wch: 10 }, { wch: 10 }, { wch: 12 }];
+    XLSX.utils.book_append_sheet(wb, ws1, "Laporan");
+
+    // ── Sheet 2: BACKUP_DATA (machine-readable) ──
+    const backup: (string | number)[][] = [[...BACKUP_HEADERS]];
+    let jumlahBaris = 0;
+    for (const t of transaksi) {
+      const its = itemsByTrx.get(t.id) ?? [];
+      for (const it of its) {
+        backup.push([
+          t.id, t.nomor_order, t.timestamp,
+          t.subtotal, t.diskon_persen, t.diskon_nominal, t.grand_total,
+          t.metode_bayar, t.catatan ?? "",
+          it.nama_produk, it.menu_item_id ?? "", it.harga_satuan, it.qty,
+          it.diskon_persen, it.diskon_nominal, it.subtotal_item, it.final_price_item,
+        ]);
+        jumlahBaris++;
+      }
+    }
+    const ws2 = XLSX.utils.aoa_to_sheet(backup);
+    XLSX.utils.book_append_sheet(wb, ws2, BACKUP_SHEET_NAME);
+
+    // ── Download di browser ──
+    const out = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+    const blob = new Blob([out], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const tgl = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
+    a.href = url;
+    a.download = `Backup-${namaUmkm.replace(/[^\w-]+/g, "_")}-${tgl}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    return { ok: true, pesan: `Berhasil mengekspor ${jumlahBaris} baris.`, jumlahBaris };
+  } catch (err: any) {
+    return { ok: false, pesan: err?.message || "Gagal mengekspor data." };
+  }
+}

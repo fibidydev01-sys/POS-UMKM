@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // MVP — konfigurasi minimal. Tambah sesuai kebutuhan.
 };
 
 export default nextConfig;

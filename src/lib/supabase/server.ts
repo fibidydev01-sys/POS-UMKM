@@ -1,11 +1,16 @@
 import { createClient } from "@supabase/supabase-js";
 
-// Server-side Supabase (dipakai di Route Handler / Server Action).
-// Dibuat per-request. Tetap tanpa auth — scoping via umkm_id.
-export function createServerSupabase() {
+/**
+ * Server-side Supabase client untuk Route Handler.
+ * Pakai service role key agar bisa bypass RLS (RLS memang disabled,
+ * tapi service role tetap diperlukan untuk operasi admin seperti
+ * insert aktivasi_kode yang seharusnya hanya bisa dari server).
+ *
+ * JANGAN expose ke client — file ini hanya diimport dari Route Handler.
+ */
+export async function createServerSupabase() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { auth: { persistSession: false, autoRefreshToken: false } }
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 }

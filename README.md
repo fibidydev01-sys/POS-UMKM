@@ -52,13 +52,17 @@ Sudah ada 3 kode test dari schema: `UMKM-MAMTA-01`, `UMKM-PILOT-02`, `UMKM-TEST-
 Tambah kode baru via SQL Editor:
 
 ```sql
-INSERT INTO aktivasi_kode (kode) VALUES ('UMKM-WARUNGBU-04');
+INSERT INTO aktivasi_kode (kode) VALUES ('UMKM-MAMTA-01');
 ```
 
 Reset perangkat (agar kode bisa dipakai ulang):
 
 ```sql
-UPDATE aktivasi_kode SET used=FALSE, umkm_id=NULL, activated_at=NULL
+UPDATE aktivasi_kode 
+SET used = FALSE, 
+    umkm_id = NULL, 
+    activated_at = NULL,
+    version_access = 'v1'   -- tambah ini
 WHERE kode = 'UMKM-MAMTA-01';
 ```
 

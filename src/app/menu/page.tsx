@@ -2,10 +2,10 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { getUmkmId } from "@/lib/utils/umkm-id";
+import { getUmkmId, getOwnerId } from "@/lib/utils/umkm-id";
 import {
-  getMenuItems, getKategori, tambahMenuItem, updateMenuItem, hapusMenuItem, toggleTersedia,
-  tambahKategori, hapusKategori, updateKategori,
+  getMenuItems, getKategori, tambahMenuItem, updateMenuItem,
+  hapusMenuItem, toggleTersedia, tambahKategori, hapusKategori, updateKategori,
   type MenuItem, type Kategori, type MenuItemInput,
 } from "@/lib/db/menu";
 import KategoriList from "@/components/menu/kategori-list";
@@ -20,6 +20,7 @@ import { Plus, Tags, Trash2, Pencil } from "lucide-react";
 export default function MenuPage() {
   const router = useRouter();
   const [umkmId, setUmkmId] = React.useState<string | null>(null);
+  const [ownerId, setOwnerId] = React.useState<string | null>(null);
   const [items, setItems] = React.useState<MenuItem[]>([]);
   const [kategori, setKategori] = React.useState<Kategori[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -38,11 +39,13 @@ export default function MenuPage() {
 
   React.useEffect(() => {
     const id = getUmkmId();
+    const oId = getOwnerId();
     if (!id) {
       router.replace("/aktivasi");
       return;
     }
     setUmkmId(id);
+    setOwnerId(oId);
     reload(id).finally(() => setLoading(false));
   }, [router, reload]);
 
@@ -50,22 +53,27 @@ export default function MenuPage() {
   const itemsTampil = katAktif ? items.filter((i) => i.kategori_id === katAktif) : items;
 
   async function simpanItem(input: MenuItemInput) {
-    if (!umkmId) return;
-    if (editItem) await updateMenuItem(editItem.id, input);
-    else await tambahMenuItem(umkmId, input);
+    if (!umkmId || !ownerId) return;
+    if (editItem) {
+      await updateMenuItem(editItem.id, input, ownerId);
+    } else {
+      await tambahMenuItem(umkmId, input, ownerId);
+    }
     await reload(umkmId);
   }
 
   async function hapusItem() {
-    if (!umkmId || !editItem) return;
-    await hapusMenuItem(editItem.id);
+    if (!umkmId || !ownerId || !editItem) return;
+    // Soft delete — is_active = false, data tetap ada untuk riwayat transaksi
+    await hapusMenuItem(editItem.id, ownerId);
     await reload(umkmId);
   }
 
-  async function onToggle(item: MenuItem, tersedia: boolean) {
-    if (!umkmId) return;
-    setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, tersedia } : i))); // optimistik
-    await toggleTersedia(item.id, tersedia);
+  async function onToggle(item: MenuItem, isAvailable: boolean) {
+    if (!umkmId || !ownerId) return;
+    // Optimistic update
+    setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, is_available: isAvailable } : i)));
+    await toggleTersedia(item.id, isAvailable, ownerId);
   }
 
   async function tambahKat() {
@@ -92,7 +100,11 @@ export default function MenuPage() {
   }
 
   if (loading) {
-    return <div className="grid min-h-dvh place-items-center text-sm text-muted-foreground">Memuat menu…</div>;
+    return (
+      <div className="grid min-h-dvh place-items-center text-sm text-muted-foreground">
+        Memuat menu…
+      </div>
+    );
   }
 
   return (
@@ -115,12 +127,7 @@ export default function MenuPage() {
 
       {items.length === 0 ? (
         <EmptyState icon="🍜" judul="Belum ada produk" deskripsi="Tambahkan produk pertama Anda.">
-          <Button
-            onClick={() => {
-              setEditItem(null);
-              setFormOpen(true);
-            }}
-          >
+          <Button onClick={() => { setEditItem(null); setFormOpen(true); }}>
             <Plus className="h-4 w-4" /> Tambah Menu
           </Button>
         </EmptyState>
@@ -131,11 +138,8 @@ export default function MenuPage() {
               key={item.id}
               item={item}
               namaKategori={item.kategori_id ? katMap.get(item.kategori_id) : undefined}
-              onEdit={() => {
-                setEditItem(item);
-                setFormOpen(true);
-              }}
-              onToggle={(t) => onToggle(item, t)}
+              onEdit={() => { setEditItem(item); setFormOpen(true); }}
+              onToggle={(v) => onToggle(item, v)}
             />
           ))}
         </div>
@@ -144,10 +148,7 @@ export default function MenuPage() {
       {/* FAB tambah */}
       {items.length > 0 && (
         <button
-          onClick={() => {
-            setEditItem(null);
-            setFormOpen(true);
-          }}
+          onClick={() => { setEditItem(null); setFormOpen(true); }}
           className="fixed bottom-[72px] right-4 z-30 grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95"
           aria-label="Tambah menu"
         >
@@ -169,7 +170,6 @@ export default function MenuPage() {
         <DialogHeader>
           <DialogTitle>Kelola Kategori</DialogTitle>
         </DialogHeader>
-
         <div className="flex gap-2">
           <Input
             value={katBaru}
@@ -177,11 +177,8 @@ export default function MenuPage() {
             onKeyDown={(e) => e.key === "Enter" && tambahKat()}
             placeholder="Nama kategori baru"
           />
-          <Button onClick={tambahKat} disabled={!katBaru.trim()}>
-            Tambah
-          </Button>
+          <Button onClick={tambahKat} disabled={!katBaru.trim()}>Tambah</Button>
         </div>
-
         <div className="mt-4 flex flex-col gap-2">
           {kategori.length === 0 ? (
             <p className="py-3 text-center text-sm text-muted-foreground">Belum ada kategori.</p>

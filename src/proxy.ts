@@ -1,17 +1,30 @@
-// Next.js 16: file ini menggantikan middleware.ts (fungsi diberi nama `proxy`).
-// Tugas: cek cookie umkm_id. Belum aktif → redirect ke /aktivasi.
+// Next.js middleware (proxy.ts menggantikan middleware.ts)
+// Owner-only: cek cookie umkm_id saja.
+// Tidak ada Supabase Auth, tidak ada role guard, tidak ada session check.
+// Kalau tidak ada cookie umkm_id → redirect ke /aktivasi.
+
 import { NextRequest, NextResponse } from "next/server";
 
 const PUBLIC_PATHS = ["/aktivasi", "/api/aktivasi"];
 
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const umkmId = request.cookies.get("umkm_id")?.value;
 
+  // Aset statis — lewati
+  if (
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/favicon")
+  ) {
+    return NextResponse.next();
+  }
+
+  // Path publik — tidak perlu cek cookie
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
   }
 
+  // Cek cookie umkm_id
+  const umkmId = request.cookies.get("umkm_id")?.value;
   if (!umkmId) {
     return NextResponse.redirect(new URL("/aktivasi", request.url));
   }
@@ -20,5 +33,7 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|ico|webp)$).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|ico|webp)$).*)",
+  ],
 };

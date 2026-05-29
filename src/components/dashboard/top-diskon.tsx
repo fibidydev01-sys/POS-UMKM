@@ -31,17 +31,19 @@ export function AnalisaDiskonList({ data }: { data: AnalisaDiskon[] }) {
   return (
     <div className="rounded-xl border border-border bg-card p-4">
       <p className="mb-1 text-sm font-bold">Analisa Diskon (bulan ini)</p>
-      <p className="mb-3 text-xs text-muted-foreground">Produk yang paling sering didiskon.</p>
+      <p className="mb-3 text-xs text-muted-foreground">
+        Preset diskon yang paling banyak dipakai dan total nilai yang diberikan.
+      </p>
       {data.length === 0 ? (
         <p className="py-4 text-center text-sm text-muted-foreground">Belum ada diskon tercatat.</p>
       ) : (
         <ul className="flex flex-col gap-2.5">
           {data.map((d) => (
-            <li key={d.nama_produk} className="flex items-center gap-3">
-              <span className="flex-1 truncate font-semibold">{d.nama_produk}</span>
-              <span className="text-xs text-muted-foreground">{d.frekuensi_diskon}x</span>
+            <li key={d.nama_preset} className="flex items-center gap-3">
+              <span className="flex-1 truncate font-semibold">{d.nama_preset}</span>
+              <span className="text-xs text-muted-foreground">{d.kali_dipakai}x</span>
               <span className="w-24 text-right text-sm font-bold text-destructive">
-                -{formatRupiah(d.total_diskon)}
+                -{formatRupiah(d.total_nilai_diskon)}
               </span>
             </li>
           ))}

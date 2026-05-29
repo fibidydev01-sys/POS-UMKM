@@ -27,7 +27,7 @@ export default function FormMenuItem({
   const [nama, setNama] = React.useState("");
   const [harga, setHarga] = React.useState("");
   const [kategoriId, setKategoriId] = React.useState<string | null>(null);
-  const [tersedia, setTersedia] = React.useState(true);
+  const [isAvailable, setIsAvailable] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
 
   React.useEffect(() => {
@@ -35,7 +35,7 @@ export default function FormMenuItem({
       setNama(item?.nama ?? "");
       setHarga(item ? formatAngka(item.harga) : "");
       setKategoriId(item?.kategori_id ?? null);
-      setTersedia(item?.tersedia ?? true);
+      setIsAvailable(item?.is_available ?? true);
     }
   }, [open, item]);
 
@@ -45,7 +45,12 @@ export default function FormMenuItem({
     if (!valid || saving) return;
     setSaving(true);
     try {
-      await onSimpan({ nama, harga: parseRupiah(harga), kategori_id: kategoriId, tersedia });
+      await onSimpan({
+        nama,
+        harga: parseRupiah(harga),
+        kategori_id: kategoriId,
+        is_available: isAvailable,
+      });
       onOpenChange(false);
     } finally {
       setSaving(false);
@@ -89,25 +94,45 @@ export default function FormMenuItem({
           <div className="flex flex-col gap-1.5">
             <Label>Kategori</Label>
             <div className="flex flex-wrap gap-2">
-              <KatChip label="Tanpa kategori" active={kategoriId === null} onClick={() => setKategoriId(null)} />
+              <KatChip
+                label="Tanpa kategori"
+                active={kategoriId === null}
+                onClick={() => setKategoriId(null)}
+              />
               {kategori.map((k) => (
-                <KatChip key={k.id} label={k.nama} active={kategoriId === k.id} onClick={() => setKategoriId(k.id)} />
+                <KatChip
+                  key={k.id}
+                  label={k.nama}
+                  active={kategoriId === k.id}
+                  onClick={() => setKategoriId(k.id)}
+                />
               ))}
             </div>
           </div>
         )}
 
+        {/* Toggle ketersediaan harian */}
         <button
           type="button"
-          onClick={() => setTersedia((v) => !v)}
+          onClick={() => setIsAvailable((v) => !v)}
           className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5"
         >
-          <span className="text-sm font-semibold">Tersedia dijual</span>
-          <span className={cn("relative h-6 w-11 rounded-full transition-colors", tersedia ? "bg-accent" : "bg-border")}>
+          <div>
+            <span className="text-sm font-semibold">Tersedia dijual hari ini</span>
+            <p className="text-xs text-muted-foreground">
+              Bisa di-toggle kapan saja jika stok habis
+            </p>
+          </div>
+          <span
+            className={cn(
+              "relative h-6 w-11 rounded-full transition-colors",
+              isAvailable ? "bg-accent" : "bg-border"
+            )}
+          >
             <span
               className={cn(
                 "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
-                tersedia ? "translate-x-[22px]" : "translate-x-0.5"
+                isAvailable ? "translate-x-[22px]" : "translate-x-0.5"
               )}
             />
           </span>
@@ -120,6 +145,7 @@ export default function FormMenuItem({
             variant="ghost"
             className="text-destructive hover:bg-destructive/10"
             onClick={async () => {
+              if (!window.confirm(`Hapus "${item.nama}"? Item tidak akan muncul di kasir tapi riwayat transaksinya tetap tersimpan.`)) return;
               await onHapus();
               onOpenChange(false);
             }}
@@ -149,7 +175,9 @@ function KatChip({ label, active, onClick }: { label: string; active: boolean; o
       onClick={onClick}
       className={cn(
         "rounded-full border px-3 py-1 text-sm font-medium transition-colors",
-        active ? "border-accent bg-accent text-accent-foreground" : "border-border bg-card hover:bg-secondary"
+        active
+          ? "border-accent bg-accent text-accent-foreground"
+          : "border-border bg-card hover:bg-secondary"
       )}
     >
       {label}

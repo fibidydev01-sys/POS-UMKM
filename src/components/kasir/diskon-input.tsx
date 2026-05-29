@@ -1,54 +1,115 @@
 "use client";
 
-import { Input } from "@/components/ui/input";
+import type { DiskonPreset } from "@/lib/db/diskon-preset";
+import { features } from "@/lib/config/features";
 import { cn } from "@/lib/utils";
 
-const PRESETS = [0, 5, 10, 15, 20];
+/**
+ * Diskon selector.
+ *
+ * V1 mode (NEXT_PUBLIC_POS_VERSION=v1):
+ *   Tampilkan hardcoded [5, 10, 15, 20]%.
+ *   preset_id dikirim null — kolom nullable di DB, sudah difix di schema 3.1.
+ *   Tidak ada input nominal bebas.
+ *
+ * Final mode (NEXT_PUBLIC_POS_VERSION=final):
+ *   Load dari tabel diskon_preset — di-pass dari kasir/page.tsx.
+ *   Tidak ada input nominal bebas.
+ */
+
+const V1_PRESETS = [5, 10, 15, 20];
 
 export default function DiskonInput({
-  value,
+  presets,
+  selectedId,
+  selectedPersen,
   onChange,
-  label = "Diskon",
 }: {
-  value: number;
-  onChange: (persen: number) => void;
-  label?: string;
+  presets: DiskonPreset[];
+  selectedId: string | null;
+  selectedPersen: number;
+  onChange: (presetId: string | null, persen: number) => void;
 }) {
-  function setCustom(raw: string) {
-    let n = parseInt(raw.replace(/[^0-9]/g, "") || "0", 10);
-    if (n > 100) n = 100;
-    onChange(n);
-  }
+  const header = (
+    <div className="flex items-center justify-between">
+      <span className="text-sm font-semibold text-muted-foreground">Diskon transaksi</span>
+      <span className="text-sm font-bold text-primary">
+        {selectedPersen > 0 ? `${selectedPersen}%` : "Tidak ada"}
+      </span>
+    </div>
+  );
 
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold text-muted-foreground">{label}</span>
-        <span className="text-sm font-bold text-primary">{value}%</span>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        {PRESETS.map((p) => (
+  // ── V1 mode: hardcoded presets ────────────────────────────
+  if (!features.diskonDariDB) {
+    return (
+      <div className="flex flex-col gap-2">
+        {header}
+        <div className="flex flex-wrap gap-2">
           <button
-            key={p}
-            onClick={() => onChange(p)}
+            onClick={() => onChange(null, 0)}
             className={cn(
               "rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors",
-              value === p ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card hover:bg-secondary"
+              selectedPersen === 0
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-card hover:bg-secondary"
             )}
           >
-            {p}%
+            Tidak ada
+          </button>
+          {V1_PRESETS.map((p) => (
+            <button
+              key={p}
+              onClick={() => onChange(null, p)}
+              className={cn(
+                "rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors",
+                selectedPersen === p && selectedId === null
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-card hover:bg-secondary"
+              )}
+            >
+              {p}%
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Final mode: load dari DB ──────────────────────────────
+  return (
+    <div className="flex flex-col gap-2">
+      {header}
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={() => onChange(null, 0)}
+          className={cn(
+            "rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors",
+            selectedId === null
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-border bg-card hover:bg-secondary"
+          )}
+        >
+          Tidak ada
+        </button>
+        {presets.map((p) => (
+          <button
+            key={p.id}
+            onClick={() => onChange(p.id, p.persen)}
+            className={cn(
+              "rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors",
+              selectedId === p.id
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-card hover:bg-secondary"
+            )}
+          >
+            {p.nama}
           </button>
         ))}
-        <div className="relative w-20">
-          <Input
-            inputMode="numeric"
-            value={value === 0 ? "" : String(value)}
-            onChange={(e) => setCustom(e.target.value)}
-            placeholder="0"
-            className="h-9 pr-6 text-center"
-          />
-          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
-        </div>
+        {presets.length === 0 && (
+          <p className="py-1 text-xs text-muted-foreground">
+            Belum ada preset. Tambah di Pengaturan → Diskon.
+          </p>
+        )}
       </div>
     </div>
   );

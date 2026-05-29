@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { getUmkmId } from "@/lib/utils/umkm-id";
+import { getCurrentUser, type CurrentUser } from "@/lib/db/users";
 import {
   getRingkasanOmzet, getOmzet7Hari, getTopProduk, getAnalisaDiskon,
   type RingkasanOmzet, type OmzetHarian, type TopProduk, type AnalisaDiskon,
@@ -14,10 +14,11 @@ import StatCard from "@/components/dashboard/stat-card";
 import ChartOmzet from "@/components/dashboard/chart-omzet";
 import { TopProdukList, AnalisaDiskonList } from "@/components/dashboard/top-diskon";
 import AlertBackup from "@/components/shared/alert-backup";
-import { CalendarDays, CalendarRange } from "lucide-react";
+import { CalendarDays, CalendarRange, RotateCcw } from "lucide-react";
 
 export default function DashboardPage() {
   const router = useRouter();
+  const [user, setUser] = React.useState<CurrentUser | null>(null);
   const [config, setConfig] = React.useState<UmkmConfig | null>(null);
   const [ringkasan, setRingkasan] = React.useState<RingkasanOmzet | null>(null);
   const [omzet7, setOmzet7] = React.useState<OmzetHarian[]>([]);
@@ -27,29 +28,28 @@ export default function DashboardPage() {
   const [perluBackup, setPerluBackup] = React.useState(false);
 
   React.useEffect(() => {
-    const id = getUmkmId();
-    if (!id) {
-      router.replace("/aktivasi");
-      return;
-    }
     (async () => {
-      try {
-        const [c, r, o, t, d] = await Promise.all([
-          getConfig(id), getRingkasanOmzet(id), getOmzet7Hari(id), getTopProduk(id), getAnalisaDiskon(id),
-        ]);
-        setConfig(c);
-        setRingkasan(r);
-        setOmzet7(o);
-        setTop(t);
-        setDiskon(d);
+      const u = await getCurrentUser();
+      if (!u) { router.replace("/aktivasi"); return; }
+      setUser(u);
 
-        // Reminder backup (berdasarkan localStorage)
-        const last = localStorage.getItem("last_backup_at");
-        const lewat7Hari = !last || Date.now() - Number(last) > 7 * 24 * 60 * 60 * 1000;
-        if (r.orderBulan > 0 && lewat7Hari) setPerluBackup(true);
-      } finally {
-        setLoading(false);
-      }
+      const [c, r, o, t, d] = await Promise.all([
+        getConfig(u.umkm_id),
+        getRingkasanOmzet(u.umkm_id),
+        getOmzet7Hari(u.umkm_id),
+        getTopProduk(u.umkm_id),
+        getAnalisaDiskon(u.umkm_id),
+      ]);
+      setConfig(c);
+      setRingkasan(r);
+      setOmzet7(o);
+      setTop(t);
+      setDiskon(d);
+
+      const last = localStorage.getItem("last_backup_at");
+      const lewat7Hari = !last || Date.now() - Number(last) > 7 * 24 * 60 * 60 * 1000;
+      if (r.orderBulan > 0 && lewat7Hari) setPerluBackup(true);
+      setLoading(false);
     })();
   }, [router]);
 
@@ -70,7 +70,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Omzet hari ini */}
       <div className="mb-3">
         <StatCard
           label="OMZET HARI INI"
@@ -94,6 +93,17 @@ export default function DashboardPage() {
           icon={<CalendarRange className="h-4 w-4" />}
         />
       </div>
+
+      {ringkasan.jumlahRefundBulan > 0 && (
+        <div className="mb-4">
+          <StatCard
+            label="Refund bulan ini"
+            nilai={formatRupiah(ringkasan.refundBulan)}
+            sub={`${ringkasan.jumlahRefundBulan} transaksi direfund`}
+            icon={<RotateCcw className="h-4 w-4" />}
+          />
+        </div>
+      )}
 
       <div className="mb-4">
         <ChartOmzet data={omzet7} />

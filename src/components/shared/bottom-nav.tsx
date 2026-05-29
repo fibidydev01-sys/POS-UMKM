@@ -5,18 +5,20 @@ import { usePathname } from "next/navigation";
 import { ShoppingCart, UtensilsCrossed, LayoutDashboard, ReceiptText, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+// Owner-only: satu nav untuk semua halaman. Tidak ada role kasir.
 const NAV = [
-  { href: "/kasir", label: "Kasir", icon: ShoppingCart },
-  { href: "/menu", label: "Menu", icon: UtensilsCrossed },
-  { href: "/dashboard", label: "Statistik", icon: LayoutDashboard },
-  { href: "/riwayat", label: "Riwayat", icon: ReceiptText },
-  { href: "/pengaturan", label: "Atur", icon: Settings },
+  { href: "/kasir",      label: "Kasir",     icon: ShoppingCart },
+  { href: "/menu",       label: "Menu",      icon: UtensilsCrossed },
+  { href: "/dashboard",  label: "Statistik", icon: LayoutDashboard },
+  { href: "/riwayat",    label: "Riwayat",   icon: ReceiptText },
+  { href: "/pengaturan", label: "Atur",      icon: Settings },
 ];
 
 const HIDDEN = ["/", "/aktivasi"];
 
 export default function BottomNav() {
   const pathname = usePathname();
+
   if (HIDDEN.includes(pathname)) return null;
 
   return (

@@ -2,11 +2,15 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { getUmkmId } from "@/lib/utils/umkm-id";
+import { getCurrentUser, type CurrentUser } from "@/lib/db/users";
 import { getMenuTersedia, getKategori, type MenuItem, type Kategori } from "@/lib/db/menu";
 import { getConfig, type UmkmConfig } from "@/lib/db/config";
+import { getDiskonPreset, type DiskonPreset } from "@/lib/db/diskon-preset";
+import { getPromoAktif, type PromoRule } from "@/lib/db/promo-rule";
 import { simpanTransaksi, type CartItem, type HasilTransaksi } from "@/lib/db/transaksi";
-import { formatRupiah } from "@/lib/utils/currency";
+import { applyPromo, hitungGrandTotal } from "@/lib/cart/promo-engine";
+import { parseRupiah, formatRupiah } from "@/lib/utils/currency";
+import { features } from "@/lib/config/features";
 import MenuGrid from "@/components/kasir/menu-grid";
 import KeranjangPanel from "@/components/kasir/keranjang-panel";
 import StrukPrint from "@/components/kasir/struk-print";
@@ -18,33 +22,59 @@ import { ShoppingCart, CheckCircle2, Printer } from "lucide-react";
 
 export default function KasirPage() {
   const router = useRouter();
-  const [umkmId, setUmkmId] = React.useState<string | null>(null);
+  const [user, setUser] = React.useState<CurrentUser | null>(null);
   const [menu, setMenu] = React.useState<MenuItem[]>([]);
   const [kategori, setKategori] = React.useState<Kategori[]>([]);
   const [config, setConfig] = React.useState<UmkmConfig | null>(null);
+  const [presets, setPresets] = React.useState<DiskonPreset[]>([]);
+  const [promoRules, setPromoRules] = React.useState<PromoRule[]>([]);
   const [loading, setLoading] = React.useState(true);
 
   const [katAktif, setKatAktif] = React.useState<string | null>(null);
-  const [cart, setCart] = React.useState<CartItem[]>([]);
+  const [cartRaw, setCartRaw] = React.useState<CartItem[]>([]);
+  const [diskonPresetId, setDiskonPresetId] = React.useState<string | null>(null);
   const [diskonPersen, setDiskonPersen] = React.useState(0);
-  const [catatan, setCatatan] = React.useState("");
+  const [paymentMethod, setPaymentMethod] = React.useState<"cash" | "qris" | "transfer" | "debit">("cash");
+  const [uangDiterima, setUangDiterima] = React.useState("");
   const [keranjangOpen, setKeranjangOpen] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [struk, setStruk] = React.useState<HasilTransaksi | null>(null);
 
+  // V1: cart = cartRaw (tidak ada promo item).
+  // Final: cart = cartRaw + promo_free items dari engine.
+  const cart = React.useMemo(
+    () => features.promoEngine ? applyPromo(cartRaw, promoRules) : cartRaw,
+    [cartRaw, promoRules]
+  );
+
+  const { grandTotal } = hitungGrandTotal(cart, diskonPersen);
+  const totalItem = cartRaw.reduce((s, c) => s + c.qty, 0);
+
   React.useEffect(() => {
-    const id = getUmkmId();
-    if (!id) {
-      router.replace("/aktivasi");
-      return;
-    }
-    setUmkmId(id);
     (async () => {
       try {
-        const [m, k, c] = await Promise.all([getMenuTersedia(id), getKategori(id), getConfig(id)]);
-        setMenu(m);
-        setKategori(k);
+        const u = await getCurrentUser();
+        if (!u) { router.replace("/aktivasi"); return; }
+        setUser(u);
+
+        const [m, k, c, p, pr] = await Promise.all([
+          getMenuTersedia(u.umkm_id),
+          getKategori(u.umkm_id),
+          getConfig(u.umkm_id),
+          // V1: skip DB query, DiskonInput tampilkan hardcoded preset
+          features.diskonDariDB
+            ? getDiskonPreset(u.umkm_id)
+            : Promise.resolve([]),
+          // V1: skip DB query, promo engine tidak aktif
+          features.promoEngine
+            ? getPromoAktif(u.umkm_id)
+            : Promise.resolve([]),
+        ]);
+        setMenu(m as MenuItem[]);
+        setKategori(k as Kategori[]);
         setConfig(c);
+        setPresets(p as DiskonPreset[]);
+        setPromoRules(pr as PromoRule[]);
       } finally {
         setLoading(false);
       }
@@ -54,51 +84,66 @@ export default function KasirPage() {
   const menuTampil = katAktif ? menu.filter((m) => m.kategori_id === katAktif) : menu;
   const qtyMap = React.useMemo(() => {
     const map: Record<string, number> = {};
-    for (const c of cart) if (c.menu_item_id) map[c.menu_item_id] = c.qty;
+    for (const c of cartRaw) if (c.menu_item_id) map[c.menu_item_id] = c.qty;
     return map;
-  }, [cart]);
-
-  const subtotal = cart.reduce((s, c) => s + c.harga_satuan * c.qty, 0);
-  const grandTotal = subtotal - Math.round((subtotal * diskonPersen) / 100);
-  const totalItem = cart.reduce((s, c) => s + c.qty, 0);
+  }, [cartRaw]);
 
   function tambah(item: MenuItem) {
-    setCart((prev) => {
+    setCartRaw((prev) => {
       const idx = prev.findIndex((c) => c.menu_item_id === item.id);
       if (idx >= 0) {
         const next = [...prev];
         next[idx] = { ...next[idx], qty: next[idx].qty + 1 };
         return next;
       }
-      return [
-        ...prev,
-        { menu_item_id: item.id, nama_produk: item.nama, harga_satuan: item.harga, qty: 1, diskon_persen: 0 },
-      ];
+      return [...prev, {
+        menu_item_id: item.id,
+        nama_produk: item.nama,
+        harga_satuan: item.harga,
+        qty: 1,
+        diskon_preset_id: null,
+        diskon_persen: 0,
+      }];
     });
   }
 
   function ubahQty(menuItemId: string | null, delta: number) {
-    setCart((prev) =>
-      prev
-        .map((c) => (c.menu_item_id === menuItemId ? { ...c, qty: c.qty + delta } : c))
+    setCartRaw((prev) =>
+      prev.map((c) => c.menu_item_id === menuItemId ? { ...c, qty: c.qty + delta } : c)
         .filter((c) => c.qty > 0)
     );
   }
 
   function hapus(menuItemId: string | null) {
-    setCart((prev) => prev.filter((c) => c.menu_item_id !== menuItemId));
+    setCartRaw((prev) => prev.filter((c) => c.menu_item_id !== menuItemId));
+  }
+
+  function handlePaymentChange(method: "cash" | "qris" | "transfer" | "debit") {
+    setPaymentMethod(method);
+    if (method !== "cash") setUangDiterima("");
   }
 
   async function bayar() {
-    if (!umkmId || cart.length === 0 || saving) return;
+    if (!user || cartRaw.length === 0 || saving) return;
+    const uangNum = paymentMethod === "cash" ? parseRupiah(uangDiterima) : null;
+    if (paymentMethod === "cash" && (uangNum === null || uangNum < grandTotal)) {
+      alert("Uang diterima kurang dari total belanja.");
+      return;
+    }
     setSaving(true);
     try {
-      const hasil = await simpanTransaksi(umkmId, cart, diskonPersen, catatan);
+      const hasil = await simpanTransaksi(
+        user.umkm_id, user.id, cart,
+        diskonPresetId, diskonPersen,
+        paymentMethod, uangNum
+      );
       setStruk(hasil);
       setKeranjangOpen(false);
-      setCart([]);
+      setCartRaw([]);
+      setDiskonPresetId(null);
       setDiskonPersen(0);
-      setCatatan("");
+      setPaymentMethod("cash");
+      setUangDiterima("");
     } catch {
       alert("Gagal menyimpan transaksi. Cek koneksi internet.");
     } finally {
@@ -107,7 +152,7 @@ export default function KasirPage() {
   }
 
   if (loading) {
-    return <CenterInfo>Memuat kasir…</CenterInfo>;
+    return <div className="grid min-h-dvh place-items-center text-sm text-muted-foreground">Memuat kasir…</div>;
   }
 
   return (
@@ -118,11 +163,7 @@ export default function KasirPage() {
       </header>
 
       {menu.length === 0 ? (
-        <EmptyState
-          icon="🍽️"
-          judul="Belum ada menu"
-          deskripsi="Tambahkan produk dulu di halaman Menu untuk mulai berjualan."
-        >
+        <EmptyState icon="🍽️" judul="Belum ada menu" deskripsi="Tambahkan produk dulu di halaman Menu.">
           <Button onClick={() => router.push("/menu")}>Kelola Menu</Button>
         </EmptyState>
       ) : (
@@ -136,7 +177,6 @@ export default function KasirPage() {
         </>
       )}
 
-      {/* Bar keranjang mengambang */}
       {totalItem > 0 && (
         <div className="fixed inset-x-0 bottom-[58px] z-30 px-4 print:hidden">
           <button
@@ -158,17 +198,21 @@ export default function KasirPage() {
         open={keranjangOpen}
         onOpenChange={setKeranjangOpen}
         cart={cart}
+        cartRaw={cartRaw}
         onUbahQty={ubahQty}
         onHapus={hapus}
+        presets={presets}
+        diskonPresetId={diskonPresetId}
         diskonPersen={diskonPersen}
-        onDiskonChange={setDiskonPersen}
-        catatan={catatan}
-        onCatatanChange={setCatatan}
+        onDiskonChange={(id, p) => { setDiskonPresetId(id); setDiskonPersen(p); }}
+        paymentMethod={paymentMethod}
+        onPaymentMethodChange={handlePaymentChange}
+        uangDiterima={uangDiterima}
+        onUangDiterimaChange={setUangDiterima}
         onBayar={bayar}
         saving={saving}
       />
 
-      {/* Struk hasil transaksi */}
       <Dialog open={!!struk} onOpenChange={(o) => !o && setStruk(null)}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -176,17 +220,13 @@ export default function KasirPage() {
             Transaksi #{struk?.trx.nomor_order} berhasil
           </DialogTitle>
         </DialogHeader>
-
         {struk && (
           <div className="rounded-xl border border-dashed border-border bg-secondary/30 p-2">
             <StrukPrint config={config} trx={struk.trx} items={struk.items} />
           </div>
         )}
-
         <div className="mt-5 flex gap-2 print:hidden">
-          <Button variant="outline" className="flex-1" onClick={() => setStruk(null)}>
-            Transaksi Baru
-          </Button>
+          <Button variant="outline" className="flex-1" onClick={() => setStruk(null)}>Transaksi Baru</Button>
           <Button className="flex-1" onClick={() => window.print()}>
             <Printer className="h-4 w-4" /> Cetak Struk
           </Button>
@@ -194,8 +234,4 @@ export default function KasirPage() {
       </Dialog>
     </main>
   );
-}
-
-function CenterInfo({ children }: { children: React.ReactNode }) {
-  return <div className="grid min-h-dvh place-items-center text-sm text-muted-foreground">{children}</div>;
 }

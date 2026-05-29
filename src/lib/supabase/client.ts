@@ -2,11 +2,11 @@
 
 import { createClient } from "@supabase/supabase-js";
 
-// Client-side Supabase. Tanpa Supabase Auth — identitas via cookie umkm_id,
-// scoping baris dilakukan manual dengan .eq('umkm_id', ...).
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+// Owner-only: tidak ada Supabase Auth, tidak ada session management.
+// RLS disabled — isolasi tenant via .eq('umkm_id', ...) di setiap query.
+// Identitas: cookie umkm_id + cookie owner_id (di-set saat aktivasi).
 
-export const supabase = createClient(url, anon, {
-  auth: { persistSession: false, autoRefreshToken: false },
-});
+export const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);

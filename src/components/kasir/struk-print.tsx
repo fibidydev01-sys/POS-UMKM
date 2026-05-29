@@ -19,11 +19,29 @@ export default function StrukPrint({
   items: TransactionItem[];
 }) {
   const garis = "border-t border-dashed border-black my-1";
+
+  // Hitung diskon dari items untuk tampilan struk
+  // Diskon header = selisih (subtotal sebelum diskon - grand_total)
+  const subtotalSebelumDiskon = items.reduce(
+    (s, it) => s + it.harga_satuan * it.qty,
+    0
+  );
+  const totalDiskon = subtotalSebelumDiskon - trx.grand_total;
+  const diskonPersen = items.find((it) => it.item_type === "discounted")?.diskon_persen ?? 0;
+
+  const labelPayment: Record<string, string> = {
+    cash: "Tunai",
+    qris: "QRIS",
+    transfer: "Transfer",
+    debit: "Debit",
+  };
+
   return (
     <div
       id="area-struk"
       className="mx-auto w-[58mm] bg-white px-1 py-2 font-mono text-[11px] leading-tight text-black"
     >
+      {/* Header UMKM */}
       <div className="text-center">
         <p className="text-sm font-bold uppercase">{config?.nama_umkm || "UMKM"}</p>
         {config?.alamat && <p className="text-[10px]">{config.alamat}</p>}
@@ -32,14 +50,20 @@ export default function StrukPrint({
 
       <div className={garis} />
 
+      {/* Info transaksi */}
       <div className="flex justify-between">
         <span>No #{trx.nomor_order}</span>
-        <span>{trx.metode_bayar}</span>
+        <span>{labelPayment[trx.payment_method] ?? trx.payment_method}</span>
       </div>
-      <div className="text-[10px]">{formatTanggalJam(trx.timestamp)}</div>
+      <div className="text-[10px]">{formatTanggalJam(trx.created_at)}</div>
+
+      {trx.status === "void" && (
+        <div className="my-1 text-center font-bold">*** VOID ***</div>
+      )}
 
       <div className={garis} />
 
+      {/* Daftar item */}
       {items.map((it) => (
         <div key={it.id} className="mb-1">
           <div>{it.nama_produk}</div>
@@ -47,27 +71,22 @@ export default function StrukPrint({
             <span>
               {it.qty} x {formatAngka(it.harga_satuan)}
             </span>
-            <span>{formatAngka(it.subtotal_item)}</span>
+            <span>{formatAngka(it.harga_satuan * it.qty)}</span>
           </div>
-          {it.diskon_nominal > 0 && (
-            <div className="flex justify-between">
-              <span>diskon {it.diskon_persen}%</span>
-              <span>-{formatAngka(it.diskon_nominal)}</span>
-            </div>
-          )}
         </div>
       ))}
 
       <div className={garis} />
 
+      {/* Total */}
       <div className="flex justify-between">
         <span>Subtotal</span>
-        <span>{formatAngka(trx.subtotal)}</span>
+        <span>{formatAngka(subtotalSebelumDiskon)}</span>
       </div>
-      {trx.diskon_nominal > 0 && (
+      {totalDiskon > 0 && (
         <div className="flex justify-between">
-          <span>Diskon {trx.diskon_persen}%</span>
-          <span>-{formatAngka(trx.diskon_nominal)}</span>
+          <span>Diskon {diskonPersen}%</span>
+          <span>-{formatAngka(totalDiskon)}</span>
         </div>
       )}
       <div className="mt-0.5 flex justify-between text-sm font-bold">
@@ -75,8 +94,24 @@ export default function StrukPrint({
         <span>{formatRupiah(trx.grand_total)}</span>
       </div>
 
+      {/* Kembalian — hanya untuk cash */}
+      {trx.payment_method === "cash" && trx.uang_diterima !== null && (
+        <>
+          <div className={garis} />
+          <div className="flex justify-between">
+            <span>Bayar</span>
+            <span>{formatAngka(trx.uang_diterima)}</span>
+          </div>
+          <div className="flex justify-between font-bold">
+            <span>Kembalian</span>
+            <span>{formatAngka(trx.kembalian ?? 0)}</span>
+          </div>
+        </>
+      )}
+
       <div className={garis} />
 
+      {/* Footer */}
       <div className="whitespace-pre-line text-center text-[10px]">
         {config?.footer_struk || "Terima kasih 🙏"}
       </div>

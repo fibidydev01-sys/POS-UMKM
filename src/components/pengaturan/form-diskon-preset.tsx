@@ -2,12 +2,13 @@
 
 import * as React from "react";
 import type { DiskonPreset, DiskonPresetInput } from "@/lib/db/diskon-preset";
-import { Dialog, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { FormDrawer } from "@/components/shared/form-drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Trash2 } from "lucide-react";
 
-export default function FormDiskonPreset({
+export function FormDiskonPreset({
   open,
   onOpenChange,
   preset,
@@ -18,7 +19,7 @@ export default function FormDiskonPreset({
   onOpenChange: (open: boolean) => void;
   preset: DiskonPreset | null;
   onSimpan: (input: DiskonPresetInput) => Promise<void> | void;
-  onHapus?: () => Promise<void> | void;
+  onHapus?: () => void;
 }) {
   const [nama, setNama] = React.useState("");
   const [persen, setPersen] = React.useState("");
@@ -32,11 +33,7 @@ export default function FormDiskonPreset({
   }, [open, preset]);
 
   const persenNum = parseFloat(persen.replace(",", ".") || "0");
-  const valid =
-    nama.trim().length > 0 &&
-    !isNaN(persenNum) &&
-    persenNum > 0 &&
-    persenNum < 100;
+  const valid = nama.trim().length > 0 && !isNaN(persenNum) && persenNum > 0 && persenNum < 100;
 
   async function simpan() {
     if (!valid || saving) return;
@@ -50,11 +47,14 @@ export default function FormDiskonPreset({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogHeader>
-        <DialogTitle>{preset ? "Edit Preset Diskon" : "Tambah Preset Diskon"}</DialogTitle>
-      </DialogHeader>
-
+    <FormDrawer
+      open={open}
+      onOpenChange={onOpenChange}
+      title={preset ? "Edit Preset Diskon" : "Tambah Preset Diskon"}
+      onSimpan={simpan}
+      saving={saving}
+      canSave={valid}
+    >
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="nama-preset">Nama preset</Label>
@@ -74,11 +74,7 @@ export default function FormDiskonPreset({
               id="persen-preset"
               inputMode="decimal"
               value={persen}
-              onChange={(e) => {
-                // Hanya angka dan titik/koma
-                const v = e.target.value.replace(/[^0-9.,]/g, "");
-                setPersen(v);
-              }}
+              onChange={(e) => setPersen(e.target.value.replace(/[^0-9.,]/g, ""))}
               placeholder="10"
               className="pr-8"
             />
@@ -90,33 +86,20 @@ export default function FormDiskonPreset({
             Mendukung desimal, contoh: 12.5 untuk 12,5%
           </p>
         </div>
-      </div>
 
-      <DialogFooter className="flex-col-reverse sm:flex-row sm:justify-between">
-        {preset && onHapus ? (
+        {preset && onHapus && (
           <Button
             variant="ghost"
-            className="text-destructive hover:bg-destructive/10"
-            onClick={async () => {
-              if (!window.confirm(`Hapus preset "${preset.nama}"?`)) return;
-              await onHapus();
+            className="mt-1 w-full justify-center text-destructive hover:bg-destructive/10"
+            onClick={() => {
               onOpenChange(false);
+              onHapus();
             }}
           >
-            Hapus
+            <Trash2 className="h-4 w-4" /> Hapus preset ini
           </Button>
-        ) : (
-          <span />
         )}
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Batal
-          </Button>
-          <Button onClick={simpan} disabled={!valid || saving}>
-            {saving ? "Menyimpan…" : "Simpan"}
-          </Button>
-        </div>
-      </DialogFooter>
-    </Dialog>
+      </div>
+    </FormDrawer>
   );
 }

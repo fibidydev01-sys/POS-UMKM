@@ -2,12 +2,13 @@
 
 import type { TopProduk, AnalisaDiskon } from "@/lib/db/transaksi";
 import { formatRupiah } from "@/lib/utils/currency";
+import { Card } from "@/components/ui/card";
 import { Flame, Tag } from "lucide-react";
 
 export function TopProdukList({ data }: { data: TopProduk[] }) {
   const maks = Math.max(1, ...data.map((d) => d.total_terjual));
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <Card className="p-4">
       <div className="flex items-center gap-2">
         <Flame className="h-4 w-4 text-primary" />
         <p className="text-sm font-bold">Produk Terlaris</p>
@@ -19,7 +20,9 @@ export function TopProdukList({ data }: { data: TopProduk[] }) {
         <ul className="flex flex-col gap-2.5">
           {data.map((p, i) => (
             <li key={p.nama_produk} className="flex items-center gap-3">
-              <span className="w-5 shrink-0 text-center text-sm font-extrabold text-primary">{i + 1}</span>
+              <span className="w-5 shrink-0 text-center text-sm font-extrabold text-primary">
+                {i + 1}
+              </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">{p.nama_produk}</p>
                 <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-secondary">
@@ -37,7 +40,7 @@ export function TopProdukList({ data }: { data: TopProduk[] }) {
           ))}
         </ul>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -45,7 +48,7 @@ export function AnalisaDiskonList({ data }: { data: AnalisaDiskon[] }) {
   if (data.length === 0) return null;
   const totalSemua = data.reduce((s, d) => s + d.total_nilai_diskon, 0);
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <Card className="p-4">
       <div className="flex items-center gap-2">
         <Tag className="h-4 w-4 text-accent" />
         <p className="text-sm font-bold">Analisa Diskon</p>
@@ -72,6 +75,6 @@ export function AnalisaDiskonList({ data }: { data: AnalisaDiskon[] }) {
           </li>
         ))}
       </ul>
-    </div>
+    </Card>
   );
 }

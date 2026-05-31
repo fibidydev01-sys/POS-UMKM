@@ -1,6 +1,8 @@
 "use client";
 
 import { CloudDownload } from "lucide-react";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 
 export default function AlertBackup({
   onBackup,
@@ -10,29 +12,32 @@ export default function AlertBackup({
   onTutup: () => void;
 }) {
   return (
-    <div className="rounded-xl border border-warning/30 bg-warning/10 p-4">
-      <div className="flex items-center gap-2">
-        <CloudDownload className="h-5 w-5 shrink-0 text-warning" />
-        <p className="font-bold text-warning">Sudah backup data?</p>
-      </div>
-      <p className="mt-1 text-sm text-warning/90">
-        Amankan transaksi Anda ke Excel. Data tersimpan di server, tapi backup rutin
-        menjaga ketenangan saat berpindah perangkat.
-      </p>
-      <div className="mt-3 flex items-center gap-3">
-        <button
-          onClick={onBackup}
-          className="rounded-lg bg-warning px-4 py-1.5 text-sm font-bold text-white"
-        >
-          Backup Sekarang
-        </button>
-        <button
-          onClick={onTutup}
-          className="px-2 py-1.5 text-sm font-bold text-warning/80 hover:text-warning"
-        >
-          Nanti
-        </button>
-      </div>
-    </div>
+    <Alert variant="warning">
+      <CloudDownload className="h-5 w-5" />
+      <AlertTitle>Sudah backup data?</AlertTitle>
+      <AlertDescription>
+        <p>
+          Amankan transaksi Anda ke Excel. Data tersimpan di server, tapi backup rutin
+          menjaga ketenangan saat berpindah perangkat.
+        </p>
+        <div className="mt-3 flex items-center gap-3">
+          <Button
+            size="sm"
+            className="bg-warning text-white hover:bg-warning/90"
+            onClick={onBackup}
+          >
+            Backup Sekarang
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-warning/80 hover:bg-warning/10 hover:text-warning"
+            onClick={onTutup}
+          >
+            Nanti
+          </Button>
+        </div>
+      </AlertDescription>
+    </Alert>
   );
 }

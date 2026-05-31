@@ -2,14 +2,16 @@
 
 import * as React from "react";
 import type { Kategori, MenuItem, MenuItemInput } from "@/lib/db/menu";
-import { Dialog, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { FormDrawer } from "@/components/shared/form-drawer";
+import { CategoryBadge } from "./category-badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import { Trash2 } from "lucide-react";
 import { formatAngka, parseRupiah } from "@/lib/utils/currency";
-import { cn } from "@/lib/utils";
 
-export default function FormMenuItem({
+export function FormMenuItem({
   open,
   onOpenChange,
   kategori,
@@ -22,7 +24,7 @@ export default function FormMenuItem({
   kategori: Kategori[];
   item: MenuItem | null;
   onSimpan: (input: MenuItemInput) => Promise<void> | void;
-  onHapus?: () => Promise<void> | void;
+  onHapus?: () => void;
 }) {
   const [nama, setNama] = React.useState("");
   const [harga, setHarga] = React.useState("");
@@ -58,11 +60,17 @@ export default function FormMenuItem({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogHeader>
-        <DialogTitle>{item ? "Edit Menu" : "Tambah Menu"}</DialogTitle>
-      </DialogHeader>
-
+    <FormDrawer
+      open={open}
+      onOpenChange={onOpenChange}
+      title={item ? "Edit Menu" : "Tambah Menu"}
+      headerRight={
+        <CategoryBadge kategori={kategori} value={kategoriId} onChange={setKategoriId} />
+      }
+      onSimpan={simpan}
+      saving={saving}
+      canSave={valid}
+    >
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="nama">Nama produk</Label>
@@ -78,7 +86,9 @@ export default function FormMenuItem({
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="harga">Harga</Label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">Rp</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+              Rp
+            </span>
             <Input
               id="harga"
               inputMode="numeric"
@@ -90,97 +100,33 @@ export default function FormMenuItem({
           </div>
         </div>
 
-        {kategori.length > 0 && (
-          <div className="flex flex-col gap-1.5">
-            <Label>Kategori</Label>
-            <div className="flex flex-wrap gap-2">
-              <KatChip
-                label="Tanpa kategori"
-                active={kategoriId === null}
-                onClick={() => setKategoriId(null)}
-              />
-              {kategori.map((k) => (
-                <KatChip
-                  key={k.id}
-                  label={k.nama}
-                  active={kategoriId === k.id}
-                  onClick={() => setKategoriId(k.id)}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Toggle ketersediaan harian */}
-        <button
-          type="button"
-          onClick={() => setIsAvailable((v) => !v)}
-          className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5"
-        >
+        <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
           <div>
             <span className="text-sm font-semibold">Tersedia dijual hari ini</span>
             <p className="text-xs text-muted-foreground">
               Bisa di-toggle kapan saja jika stok habis
             </p>
           </div>
-          <span
-            className={cn(
-              "relative h-6 w-11 rounded-full transition-colors",
-              isAvailable ? "bg-accent" : "bg-border"
-            )}
-          >
-            <span
-              className={cn(
-                "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
-                isAvailable ? "translate-x-[22px]" : "translate-x-0.5"
-              )}
-            />
-          </span>
-        </button>
-      </div>
+          <Switch
+            checked={isAvailable}
+            onCheckedChange={setIsAvailable}
+            aria-label="Tersedia hari ini"
+          />
+        </div>
 
-      <DialogFooter className="flex-col-reverse sm:flex-row sm:justify-between">
-        {item && onHapus ? (
+        {item && onHapus && (
           <Button
             variant="ghost"
-            className="text-destructive hover:bg-destructive/10"
-            onClick={async () => {
-              if (!window.confirm(`Hapus "${item.nama}"? Item tidak akan muncul di kasir tapi riwayat transaksinya tetap tersimpan.`)) return;
-              await onHapus();
+            className="mt-1 w-full justify-center text-destructive hover:bg-destructive/10"
+            onClick={() => {
               onOpenChange(false);
+              onHapus();
             }}
           >
-            Hapus
+            <Trash2 className="h-4 w-4" /> Hapus menu ini
           </Button>
-        ) : (
-          <span />
         )}
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Batal
-          </Button>
-          <Button onClick={simpan} disabled={!valid || saving}>
-            {saving ? "Menyimpan…" : "Simpan"}
-          </Button>
-        </div>
-      </DialogFooter>
-    </Dialog>
-  );
-}
-
-function KatChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "rounded-full border px-3 py-1 text-sm font-medium transition-colors",
-        active
-          ? "border-accent bg-accent text-accent-foreground"
-          : "border-border bg-card hover:bg-secondary"
-      )}
-    >
-      {label}
-    </button>
+      </div>
+    </FormDrawer>
   );
 }

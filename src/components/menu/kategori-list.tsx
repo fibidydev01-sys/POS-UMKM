@@ -1,9 +1,13 @@
 "use client";
 
 import type { Kategori } from "@/lib/db/menu";
-import { cn } from "@/lib/utils";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
-export default function KategoriList({
+/**
+ * KategoriList — filter kategori horizontal-scroll memakai ToggleGroup.
+ * "Semua" diwakili value "all".
+ */
+export function KategoriList({
   kategori,
   aktif,
   onPilih,
@@ -17,29 +21,24 @@ export default function KategoriList({
   if (kategori.length === 0 && tampilkanSemua) return null;
 
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      {tampilkanSemua && (
-        <Chip label="Semua" active={aktif === null} onClick={() => onPilih(null)} />
-      )}
-      {kategori.map((k) => (
-        <Chip key={k.id} label={k.nama} active={aktif === k.id} onClick={() => onPilih(k.id)} />
-      ))}
+    <div className="overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <ToggleGroup
+        type="single"
+        value={aktif ?? "all"}
+        onValueChange={(val) => onPilih(!val || val === "all" ? null : val)}
+        className="w-max flex-nowrap"
+      >
+        {tampilkanSemua && (
+          <ToggleGroupItem value="all" className="shrink-0 rounded-full px-4">
+            Semua
+          </ToggleGroupItem>
+        )}
+        {kategori.map((k) => (
+          <ToggleGroupItem key={k.id} value={k.id} className="shrink-0 rounded-full px-4">
+            {k.nama}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
     </div>
-  );
-}
-
-function Chip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "shrink-0 rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors",
-        active
-          ? "border-primary bg-primary text-primary-foreground"
-          : "border-border bg-card text-muted-foreground hover:bg-secondary"
-      )}
-    >
-      {label}
-    </button>
   );
 }

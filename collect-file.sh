@@ -25,21 +25,25 @@ echo -e "${BOLD}║           FILE COLLECTOR — POS UMKM MVP              ║${
 echo -e "${BOLD}╠══════════════════════════════════════════════════════╣${RESET}"
 echo -e "${BOLD}║  LAYERS                                              ║${RESET}"
 echo -e "${BOLD}║  1.${RESET}  ${CYAN}src/app/${RESET}                                   ${BOLD}║${RESET}"
-echo -e "${BOLD}║  2.${RESET}  ${CYAN}src/components/dashboard/${RESET}                  ${BOLD}║${RESET}"
-echo -e "${BOLD}║  3.${RESET}  ${CYAN}src/components/kasir/${RESET}                      ${BOLD}║${RESET}"
-echo -e "${BOLD}║  4.${RESET}  ${CYAN}src/components/menu/${RESET}                       ${BOLD}║${RESET}"
-echo -e "${BOLD}║  5.${RESET}  ${CYAN}src/components/pengaturan/${RESET}                 ${BOLD}║${RESET}"
-echo -e "${BOLD}║  6.${RESET}  ${CYAN}src/components/shared/${RESET}                     ${BOLD}║${RESET}"
-echo -e "${BOLD}║  7.${RESET}  ${CYAN}src/lib/cart/${RESET}                              ${BOLD}║${RESET}"
-echo -e "${BOLD}║  8.${RESET}  ${CYAN}src/lib/db/${RESET}                                ${BOLD}║${RESET}"
-echo -e "${BOLD}║  9.${RESET}  ${CYAN}src/lib/export/${RESET}                            ${BOLD}║${RESET}"
-echo -e "${BOLD}║  10.${RESET} ${CYAN}src/lib/supabase/${RESET}                          ${BOLD}║${RESET}"
-echo -e "${BOLD}║  11.${RESET} ${CYAN}src/lib/utils/ ${YELLOW}+ src/lib/utils.ts${RESET}        ${BOLD}║${RESET}"
-echo -e "${BOLD}║  12.${RESET} ${CYAN}src/lib/config/${RESET}                            ${BOLD}║${RESET}"
-echo -e "${BOLD}║  13.${RESET} ${CYAN}src/proxy.ts${RESET}                               ${BOLD}║${RESET}"
+echo -e "${BOLD}║  2.${RESET}  ${CYAN}src/components/aktivasi/${RESET}                   ${BOLD}║${RESET}"
+echo -e "${BOLD}║  3.${RESET}  ${CYAN}src/components/dashboard/${RESET}                  ${BOLD}║${RESET}"
+echo -e "${BOLD}║  4.${RESET}  ${CYAN}src/components/kasir/${RESET}                      ${BOLD}║${RESET}"
+echo -e "${BOLD}║  5.${RESET}  ${CYAN}src/components/menu/${RESET}                       ${BOLD}║${RESET}"
+echo -e "${BOLD}║  6.${RESET}  ${CYAN}src/components/pengaturan/${RESET}                 ${BOLD}║${RESET}"
+echo -e "${BOLD}║  7.${RESET}  ${CYAN}src/components/riwayat/${RESET}                    ${BOLD}║${RESET}"
+echo -e "${BOLD}║  8.${RESET}  ${CYAN}src/components/shared/${RESET}                     ${BOLD}║${RESET}"
+echo -e "${BOLD}║  9.${RESET}  ${CYAN}src/hooks/${RESET}                                 ${BOLD}║${RESET}"
+echo -e "${BOLD}║  10.${RESET} ${CYAN}src/store/${RESET}                                 ${BOLD}║${RESET}"
+echo -e "${BOLD}║  11.${RESET} ${CYAN}src/lib/cart/${RESET}                              ${BOLD}║${RESET}"
+echo -e "${BOLD}║  12.${RESET} ${CYAN}src/lib/db/${RESET}                                ${BOLD}║${RESET}"
+echo -e "${BOLD}║  13.${RESET} ${CYAN}src/lib/export/${RESET}                            ${BOLD}║${RESET}"
+echo -e "${BOLD}║  14.${RESET} ${CYAN}src/lib/supabase/${RESET}                          ${BOLD}║${RESET}"
+echo -e "${BOLD}║  15.${RESET} ${CYAN}src/lib/utils/ ${YELLOW}+ src/lib/utils.ts${RESET}        ${BOLD}║${RESET}"
+echo -e "${BOLD}║  16.${RESET} ${CYAN}src/lib/config/${RESET}                            ${BOLD}║${RESET}"
+echo -e "${BOLD}║  17.${RESET} ${CYAN}src/proxy.ts${RESET}                               ${BOLD}║${RESET}"
 echo -e "${BOLD}║                                                      ║${RESET}"
-echo -e "${BOLD}║  88.${RESET} ${GREEN}ALL COMPONENTS (2–6)${RESET}                       ${BOLD}║${RESET}"
-echo -e "${BOLD}║  77.${RESET} ${GREEN}ALL LIB (7–12)${RESET}                             ${BOLD}║${RESET}"
+echo -e "${BOLD}║  88.${RESET} ${GREEN}ALL COMPONENTS (2–8)${RESET}                       ${BOLD}║${RESET}"
+echo -e "${BOLD}║  77.${RESET} ${GREEN}ALL LIB (11–16)${RESET}                            ${BOLD}║${RESET}"
 echo -e "${BOLD}║  99.${RESET} ${GREEN}ALL LAYERS (everything)${RESET}                    ${BOLD}║${RESET}"
 echo -e "${BOLD}╚══════════════════════════════════════════════════════╝${RESET}"
 echo ""
@@ -151,40 +155,81 @@ run_layer() {
             cf "$SRC/app/riwayat/page.tsx"
             ;;
         2)
+            sec "src/components/aktivasi/"
+            cf "$SRC/components/aktivasi/aktivasi-view.tsx"
+            ;;
+        3)
             sec "src/components/dashboard/"
             cf "$SRC/components/dashboard/chart-omzet.tsx"
+            cf "$SRC/components/dashboard/dashboard-view.tsx"
             cf "$SRC/components/dashboard/stat-card.tsx"
             cf "$SRC/components/dashboard/top-diskon.tsx"
             ;;
-        3)
+        4)
             sec "src/components/kasir/"
-            cf "$SRC/components/kasir/diskon-input.tsx"
-            cf "$SRC/components/kasir/keranjang-panel.tsx"
+            cf "$SRC/components/kasir/cart-line.tsx"
+            cf "$SRC/components/kasir/cart-panel.tsx"
+            cf "$SRC/components/kasir/cart-summary.tsx"
+            cf "$SRC/components/kasir/discount-picker.tsx"
+            cf "$SRC/components/kasir/kasir-view.tsx"
+            cf "$SRC/components/kasir/layout-toggle.tsx"
+            cf "$SRC/components/kasir/menu-card.tsx"
             cf "$SRC/components/kasir/menu-grid.tsx"
+            cf "$SRC/components/kasir/payment-method.tsx"
+            cf "$SRC/components/kasir/struk-dialog.tsx"
             cf "$SRC/components/kasir/struk-print.tsx"
             ;;
-        4)
+        5)
             sec "src/components/menu/"
+            cf "$SRC/components/menu/category-badge.tsx"
             cf "$SRC/components/menu/form-menu-item.tsx"
             cf "$SRC/components/menu/kategori-list.tsx"
             cf "$SRC/components/menu/menu-item-card.tsx"
-            ;;
-        5)
-            sec "src/components/pengaturan/"
-            cf "$SRC/components/pengaturan/form-diskon-preset.tsx"
-            cf "$SRC/components/pengaturan/form-promo-rule.tsx"
+            cf "$SRC/components/menu/menu-view.tsx"
             ;;
         6)
+            sec "src/components/pengaturan/"
+            cf "$SRC/components/pengaturan/diskon-view.tsx"
+            cf "$SRC/components/pengaturan/form-diskon-preset.tsx"
+            cf "$SRC/components/pengaturan/form-promo-rule.tsx"
+            cf "$SRC/components/pengaturan/pengaturan-view.tsx"
+            cf "$SRC/components/pengaturan/promo-view.tsx"
+            ;;
+        7)
+            sec "src/components/riwayat/"
+            cf "$SRC/components/riwayat/riwayat-view.tsx"
+            cf "$SRC/components/riwayat/transaksi-detail.tsx"
+            cf "$SRC/components/riwayat/transaksi-row.tsx"
+            ;;
+        8)
             sec "src/components/shared/"
             cf "$SRC/components/shared/alert-backup.tsx"
             cf "$SRC/components/shared/app-shell.tsx"
-            cf "$SRC/components/shared/empty-state.tsx"
+            cf "$SRC/components/shared/app-sidebar.tsx"
+            cf "$SRC/components/shared/confirm-dialog.tsx"
+            cf "$SRC/components/shared/form-drawer.tsx"
+            cf "$SRC/components/shared/mobile-nav.tsx"
+            cf "$SRC/components/shared/nav-config.ts"
+            cf "$SRC/components/shared/page-skeleton.tsx"
             ;;
-        7)
+        9)
+            sec "src/hooks/"
+            cf "$SRC/hooks/use-current-user.ts"
+            cf "$SRC/hooks/use-dashboard-data.ts"
+            cf "$SRC/hooks/use-kasir-data.ts"
+            cf "$SRC/hooks/use-media-query.ts"
+            cf "$SRC/hooks/use-menu-manager.ts"
+            cf "$SRC/hooks/use-riwayat.ts"
+            ;;
+        10)
+            sec "src/store/"
+            cf "$SRC/store/cart-store.ts"
+            ;;
+        11)
             sec "src/lib/cart/"
             cf "$SRC/lib/cart/promo-engine.ts"
             ;;
-        8)
+        12)
             sec "src/lib/db/"
             cf "$SRC/lib/db/config.ts"
             cf "$SRC/lib/db/diskon-preset.ts"
@@ -194,17 +239,17 @@ run_layer() {
             cf "$SRC/lib/db/transaksi.ts"
             cf "$SRC/lib/db/users.ts"
             ;;
-        9)
+        13)
             sec "src/lib/export/"
             cf "$SRC/lib/export/excel.ts"
             cf "$SRC/lib/export/import.ts"
             ;;
-        10)
+        14)
             sec "src/lib/supabase/"
             cf "$SRC/lib/supabase/client.ts"
             cf "$SRC/lib/supabase/server.ts"
             ;;
-        11)
+        15)
             sec "src/lib/utils/ + src/lib/utils.ts"
             cf "$SRC/lib/utils/currency.ts"
             cf "$SRC/lib/utils/date.ts"
@@ -212,11 +257,11 @@ run_layer() {
             cf "$SRC/lib/utils/umkm-id.ts"
             cf "$SRC/lib/utils.ts"
             ;;
-        12)
+        16)
             sec "src/lib/config/"
             cf "$SRC/lib/config/features.ts"
             ;;
-        13)
+        17)
             sec "src/proxy.ts"
             cf "$SRC/proxy.ts"
             ;;
@@ -228,11 +273,11 @@ run_layer() {
 
 # ── dispatch ──────────────────────────────────────────────────────
 if echo "$INPUT" | grep -qw "99"; then
-    for i in 1 2 3 4 5 6 7 8 9 10 11 12 13; do run_layer $i; done
+    for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17; do run_layer $i; done
 elif echo "$INPUT" | grep -qw "88"; then
-    for i in 2 3 4 5 6; do run_layer $i; done
+    for i in 2 3 4 5 6 7 8; do run_layer $i; done
 elif echo "$INPUT" | grep -qw "77"; then
-    for i in 7 8 9 10 11 12; do run_layer $i; done
+    for i in 11 12 13 14 15 16; do run_layer $i; done
 else
     for i in $INPUT; do run_layer "$i"; done
 fi

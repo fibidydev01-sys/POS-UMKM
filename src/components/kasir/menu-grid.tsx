@@ -1,41 +1,42 @@
 "use client";
 
 import type { MenuItem } from "@/lib/db/menu";
-import { formatRupiah } from "@/lib/utils/currency";
-import { cn } from "@/lib/utils";
+import { MenuCard, type MenuLayout } from "./menu-card";
 
-export default function MenuGrid({
+/**
+ * MenuGrid — render daftar produk sesuai layout.
+ *
+ *  - list: satu kolom, baris ringkas (default kasir).
+ *  - grid: 2 kolom (mobile) → 3 (sm) → 4 (lg). Breakpoint sistem, bukan
+ *    pixel arbitrer (BUG-04).
+ */
+export function MenuGrid({
   items,
   qtyMap,
+  layout,
   onTambah,
 }: {
   items: MenuItem[];
   qtyMap: Record<string, number>;
+  layout: MenuLayout;
   onTambah: (item: MenuItem) => void;
 }) {
+  const className =
+    layout === "list"
+      ? "flex flex-col gap-2"
+      : "grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4";
+
   return (
-    <div className="grid grid-cols-2 gap-2.5 min-[480px]:grid-cols-3 min-[700px]:grid-cols-4">
-      {items.map((item) => {
-        const qty = qtyMap[item.id] ?? 0;
-        return (
-          <button
-            key={item.id}
-            onClick={() => onTambah(item)}
-            className={cn(
-              "relative flex aspect-square flex-col justify-between rounded-xl border bg-card p-3 text-left transition-all active:scale-[0.97]",
-              qty > 0 ? "border-primary ring-2 ring-primary/30" : "border-border hover:border-primary/40"
-            )}
-          >
-            {qty > 0 && (
-              <span className="absolute right-2 top-2 grid h-6 min-w-6 place-items-center rounded-full bg-primary px-1.5 text-xs font-bold text-primary-foreground">
-                {qty}
-              </span>
-            )}
-            <span className="line-clamp-3 text-sm font-semibold leading-snug">{item.nama}</span>
-            <span className="text-sm font-bold text-primary">{formatRupiah(item.harga)}</span>
-          </button>
-        );
-      })}
+    <div className={className}>
+      {items.map((item) => (
+        <MenuCard
+          key={item.id}
+          item={item}
+          qty={qtyMap[item.id] ?? 0}
+          layout={layout}
+          onTambah={onTambah}
+        />
+      ))}
     </div>
   );
 }

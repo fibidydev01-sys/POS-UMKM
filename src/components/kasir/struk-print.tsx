@@ -9,13 +9,10 @@ import { getPaperWidth } from "@/lib/utils/paper";
 import { cn } from "@/lib/utils";
 
 /**
- * Struk dibungkus elemen id="area-struk".
- * CSS @media print (globals.css) hanya menampilkan elemen ini saat dicetak.
- *
- * Lebar kertas (58mm / 80mm) mengikuti preferensi perangkat (localStorage),
- * dan ukuran @page disuntik dinamis ke <head> agar pratinjau cetak sesuai.
+ * StrukPrint — area cetak thermal (id="area-struk"). CSS @media print
+ * di globals.css hanya menampilkan elemen ini. Logika tidak berubah.
  */
-export default function StrukPrint({
+export function StrukPrint({
   config,
   trx,
   items,
@@ -24,11 +21,11 @@ export default function StrukPrint({
   trx: Transaksi;
   items: TransactionItem[];
 }) {
-  // Lebar kertas = preferensi perangkat (localStorage). Default 58mm.
   const [paperWidth, setPaperWidth] = React.useState<58 | 80>(58);
-  React.useEffect(() => { setPaperWidth(getPaperWidth()); }, []);
+  React.useEffect(() => {
+    setPaperWidth(getPaperWidth());
+  }, []);
 
-  // Suntik @page size sesuai lebar kertas (hanya berlaku saat cetak).
   React.useEffect(() => {
     const id = "struk-page-size";
     let el = document.getElementById(id) as HTMLStyleElement | null;
@@ -38,17 +35,13 @@ export default function StrukPrint({
       document.head.appendChild(el);
     }
     el.textContent = `@media print{@page{margin:4mm;size:${paperWidth}mm auto}}`;
-    return () => { el?.remove(); };
+    return () => {
+      el?.remove();
+    };
   }, [paperWidth]);
 
   const garis = "border-t border-dashed border-black my-1";
-
-  // Hitung diskon dari items untuk tampilan struk
-  // Diskon header = selisih (subtotal sebelum diskon - grand_total)
-  const subtotalSebelumDiskon = items.reduce(
-    (s, it) => s + it.harga_satuan * it.qty,
-    0
-  );
+  const subtotalSebelumDiskon = items.reduce((s, it) => s + it.harga_satuan * it.qty, 0);
   const totalDiskon = subtotalSebelumDiskon - trx.grand_total;
   const diskonPersen = items.find((it) => it.item_type === "discounted")?.diskon_persen ?? 0;
 
@@ -58,7 +51,6 @@ export default function StrukPrint({
     transfer: "Transfer",
     debit: "Debit",
   };
-
   const lebar80 = paperWidth === 80;
 
   return (
@@ -69,7 +61,6 @@ export default function StrukPrint({
         lebar80 ? "w-[80mm] text-[12px]" : "w-[58mm] text-[11px]"
       )}
     >
-      {/* Header UMKM */}
       <div className="text-center">
         <p className="text-sm font-bold uppercase">{config?.nama_umkm || "UMKM"}</p>
         {config?.alamat && <p className="text-[10px]">{config.alamat}</p>}
@@ -78,7 +69,6 @@ export default function StrukPrint({
 
       <div className={garis} />
 
-      {/* Info transaksi */}
       <div className="flex justify-between">
         <span>No #{trx.nomor_order}</span>
         <span>{labelPayment[trx.payment_method] ?? trx.payment_method}</span>
@@ -91,7 +81,6 @@ export default function StrukPrint({
 
       <div className={garis} />
 
-      {/* Daftar item */}
       {items.map((it) => (
         <div key={it.id} className="mb-1">
           <div>{it.nama_produk}</div>
@@ -106,7 +95,6 @@ export default function StrukPrint({
 
       <div className={garis} />
 
-      {/* Total */}
       <div className="flex justify-between">
         <span>Subtotal</span>
         <span>{formatAngka(subtotalSebelumDiskon)}</span>
@@ -122,7 +110,6 @@ export default function StrukPrint({
         <span>{formatRupiah(trx.grand_total)}</span>
       </div>
 
-      {/* Kembalian — hanya untuk cash */}
       {trx.payment_method === "cash" && trx.uang_diterima !== null && (
         <>
           <div className={garis} />
@@ -139,7 +126,6 @@ export default function StrukPrint({
 
       <div className={garis} />
 
-      {/* Footer */}
       <div className="whitespace-pre-line text-center text-[10px]">
         {config?.footer_struk || "Terima kasih 🙏"}
       </div>

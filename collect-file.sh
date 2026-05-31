@@ -3,6 +3,8 @@
 # collect-files.sh — POS UMKM MVP File Collector
 # Run from: d:/BOILERPLATE/pos-umkm-mvp
 # Output  : collection/COLLECT-<timestamp>.txt
+#           collection/typecheck-<timestamp>.txt
+#           collection/lint-<timestamp>.txt
 # Skip    : src/components/ui/, favicon.ico
 # ================================================================
 
@@ -46,14 +48,42 @@ read -r INPUT
 
 TIMESTAMP=$(date '+%Y%m%d-%H%M%S')
 FILE="$OUT/COLLECT-${TIMESTAMP}.txt"
+TC_FILE="$OUT/typecheck-${TIMESTAMP}.txt"
+LINT_FILE="$OUT/lint-${TIMESTAMP}.txt"
 FOUND=0; MISSING=0; TOTAL=0
+
+# ── typecheck + lint dulu sebelum collect ────────────────────────
+echo ""
+echo -e "${BOLD}▶ Running typecheck...${RESET}"
+pnpm run typecheck 2>&1 | tee "$TC_FILE"
+TC_EXIT=${PIPESTATUS[0]}
+if [ $TC_EXIT -eq 0 ]; then
+  echo -e "  ${GREEN}✓ Typecheck PASSED${RESET}"
+else
+  echo -e "  ${RED}✗ Typecheck FAILED — lihat $TC_FILE${RESET}"
+fi
+
+echo ""
+echo -e "${BOLD}▶ Running lint...${RESET}"
+pnpm run lint 2>&1 | tee "$LINT_FILE"
+LINT_EXIT=${PIPESTATUS[0]}
+if [ $LINT_EXIT -eq 0 ]; then
+  echo -e "  ${GREEN}✓ Lint PASSED${RESET}"
+else
+  echo -e "  ${RED}✗ Lint FAILED — lihat $LINT_FILE${RESET}"
+fi
+
+echo ""
+echo -e "${BOLD}▶ Collecting source files...${RESET}"
 
 {
 echo "################################################################"
 echo "##  POS UMKM MVP — SOURCE COLLECTION"
-echo "##  Generated : $(date '+%Y-%m-%d %H:%M:%S')"
-echo "##  Selection : $INPUT"
-echo "##  Skipped   : src/components/ui/, favicon.ico"
+echo "##  Generated  : $(date '+%Y-%m-%d %H:%M:%S')"
+echo "##  Selection  : $INPUT"
+echo "##  Typecheck  : $([ $TC_EXIT -eq 0 ] && echo PASSED || echo FAILED)"
+echo "##  Lint       : $([ $LINT_EXIT -eq 0 ] && echo PASSED || echo FAILED)"
+echo "##  Skipped    : src/components/ui/, favicon.ico"
 echo "################################################################"
 echo ""
 } > "$FILE"
@@ -105,8 +135,6 @@ sec() {
 # ── layer definitions ─────────────────────────────────────────────
 run_layer() {
     case "$1" in
-
-        # ── 1. src/app/ ──────────────────────────────────────────
         1)
             sec "src/app/"
             cf "$SRC/app/globals.css"
@@ -122,16 +150,12 @@ run_layer() {
             cf "$SRC/app/pengaturan/promo/page.tsx"
             cf "$SRC/app/riwayat/page.tsx"
             ;;
-
-        # ── 2. src/components/dashboard/ ────────────────────────
         2)
             sec "src/components/dashboard/"
             cf "$SRC/components/dashboard/chart-omzet.tsx"
             cf "$SRC/components/dashboard/stat-card.tsx"
             cf "$SRC/components/dashboard/top-diskon.tsx"
             ;;
-
-        # ── 3. src/components/kasir/ ────────────────────────────
         3)
             sec "src/components/kasir/"
             cf "$SRC/components/kasir/diskon-input.tsx"
@@ -139,37 +163,27 @@ run_layer() {
             cf "$SRC/components/kasir/menu-grid.tsx"
             cf "$SRC/components/kasir/struk-print.tsx"
             ;;
-
-        # ── 4. src/components/menu/ ─────────────────────────────
         4)
             sec "src/components/menu/"
             cf "$SRC/components/menu/form-menu-item.tsx"
             cf "$SRC/components/menu/kategori-list.tsx"
             cf "$SRC/components/menu/menu-item-card.tsx"
             ;;
-
-        # ── 5. src/components/pengaturan/ ───────────────────────
         5)
             sec "src/components/pengaturan/"
             cf "$SRC/components/pengaturan/form-diskon-preset.tsx"
             cf "$SRC/components/pengaturan/form-promo-rule.tsx"
             ;;
-
-        # ── 6. src/components/shared/ ───────────────────────────
         6)
             sec "src/components/shared/"
             cf "$SRC/components/shared/alert-backup.tsx"
             cf "$SRC/components/shared/bottom-nav.tsx"
             cf "$SRC/components/shared/empty-state.tsx"
             ;;
-
-        # ── 7. src/lib/cart/ ────────────────────────────────────
         7)
             sec "src/lib/cart/"
             cf "$SRC/lib/cart/promo-engine.ts"
             ;;
-
-        # ── 8. src/lib/db/ ──────────────────────────────────────
         8)
             sec "src/lib/db/"
             cf "$SRC/lib/db/config.ts"
@@ -179,22 +193,16 @@ run_layer() {
             cf "$SRC/lib/db/transaksi.ts"
             cf "$SRC/lib/db/users.ts"
             ;;
-
-        # ── 9. src/lib/export/ ──────────────────────────────────
         9)
             sec "src/lib/export/"
             cf "$SRC/lib/export/excel.ts"
             cf "$SRC/lib/export/import.ts"
             ;;
-
-        # ── 10. src/lib/supabase/ ───────────────────────────────
         10)
             sec "src/lib/supabase/"
             cf "$SRC/lib/supabase/client.ts"
             cf "$SRC/lib/supabase/server.ts"
             ;;
-
-        # ── 11. src/lib/utils/ + src/lib/utils.ts ───────────────
         11)
             sec "src/lib/utils/ + src/lib/utils.ts"
             cf "$SRC/lib/utils/currency.ts"
@@ -202,19 +210,14 @@ run_layer() {
             cf "$SRC/lib/utils/umkm-id.ts"
             cf "$SRC/lib/utils.ts"
             ;;
-
-        # ── 12. src/lib/config/ ─────────────────────────────────
         12)
             sec "src/lib/config/"
             cf "$SRC/lib/config/features.ts"
             ;;
-
-        # ── 13. src/proxy.ts ────────────────────────────────────
         13)
             sec "src/proxy.ts"
             cf "$SRC/proxy.ts"
             ;;
-
         *)
             echo -e "  ${RED}⚠ Pilihan tidak valid: $1${RESET}"
             ;;
@@ -240,8 +243,13 @@ echo -e "${BOLD}═════════════════════�
 echo -e "  ${GREEN}✓ Found   : $FOUND / $TOTAL${RESET}"
 echo -e "  ${RED}✗ Missing : $MISSING${RESET}"
 echo -e "  Coverage  : $pct%"
+echo -e "${BOLD}────────────────────────────────────${RESET}"
+echo -e "  Typecheck : $([ $TC_EXIT -eq 0 ] && echo -e "${GREEN}PASSED${RESET}" || echo -e "${RED}FAILED${RESET}")"
+echo -e "  Lint      : $([ $LINT_EXIT -eq 0 ] && echo -e "${GREEN}PASSED${RESET}" || echo -e "${RED}FAILED${RESET}")"
 echo -e "${BOLD}════════════════════════════════════${RESET}"
-echo -e "  Output: ${CYAN}$FILE${RESET}"
+echo -e "  Collect : ${CYAN}$FILE${RESET}"
+echo -e "  TC      : ${CYAN}$TC_FILE${RESET}"
+echo -e "  Lint    : ${CYAN}$LINT_FILE${RESET}"
 echo ""
 
 {
@@ -249,7 +257,9 @@ echo ""
 echo "################################################################"
 echo "##  SUMMARY"
 echo "################################################################"
-echo "Found   : $FOUND / $TOTAL"
-echo "Missing : $MISSING"
-echo "Coverage: $pct%"
+echo "Found     : $FOUND / $TOTAL"
+echo "Missing   : $MISSING"
+echo "Coverage  : $pct%"
+echo "Typecheck : $([ $TC_EXIT -eq 0 ] && echo PASSED || echo FAILED)"
+echo "Lint      : $([ $LINT_EXIT -eq 0 ] && echo PASSED || echo FAILED)"
 } >> "$FILE"

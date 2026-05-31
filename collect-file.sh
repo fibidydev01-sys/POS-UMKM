@@ -3,7 +3,7 @@
 # collect-files.sh — POS UMKM MVP File Collector
 # Run from: d:/BOILERPLATE/pos-umkm-mvp
 # Output  : collection/COLLECT-<timestamp>.txt
-# Skip    : src/components/ui/
+# Skip    : src/components/ui/, favicon.ico
 # ================================================================
 
 SRC="./src"
@@ -33,10 +33,11 @@ echo -e "${BOLD}║  8.${RESET}  ${CYAN}src/lib/db/${RESET}                     
 echo -e "${BOLD}║  9.${RESET}  ${CYAN}src/lib/export/${RESET}                            ${BOLD}║${RESET}"
 echo -e "${BOLD}║  10.${RESET} ${CYAN}src/lib/supabase/${RESET}                          ${BOLD}║${RESET}"
 echo -e "${BOLD}║  11.${RESET} ${CYAN}src/lib/utils/ ${YELLOW}+ src/lib/utils.ts${RESET}        ${BOLD}║${RESET}"
-echo -e "${BOLD}║  12.${RESET} ${CYAN}src/proxy.ts${RESET}                               ${BOLD}║${RESET}"
+echo -e "${BOLD}║  12.${RESET} ${CYAN}src/lib/config/${RESET}                            ${BOLD}║${RESET}"
+echo -e "${BOLD}║  13.${RESET} ${CYAN}src/proxy.ts${RESET}                               ${BOLD}║${RESET}"
 echo -e "${BOLD}║                                                      ║${RESET}"
 echo -e "${BOLD}║  88.${RESET} ${GREEN}ALL COMPONENTS (2–6)${RESET}                       ${BOLD}║${RESET}"
-echo -e "${BOLD}║  77.${RESET} ${GREEN}ALL LIB (7–11)${RESET}                             ${BOLD}║${RESET}"
+echo -e "${BOLD}║  77.${RESET} ${GREEN}ALL LIB (7–12)${RESET}                             ${BOLD}║${RESET}"
 echo -e "${BOLD}║  99.${RESET} ${GREEN}ALL LAYERS (everything)${RESET}                    ${BOLD}║${RESET}"
 echo -e "${BOLD}╚══════════════════════════════════════════════════════╝${RESET}"
 echo ""
@@ -52,7 +53,7 @@ echo "################################################################"
 echo "##  POS UMKM MVP — SOURCE COLLECTION"
 echo "##  Generated : $(date '+%Y-%m-%d %H:%M:%S')"
 echo "##  Selection : $INPUT"
-echo "##  Skipped   : src/components/ui/"
+echo "##  Skipped   : src/components/ui/, favicon.ico"
 echo "################################################################"
 echo ""
 } > "$FILE"
@@ -108,11 +109,9 @@ run_layer() {
         # ── 1. src/app/ ──────────────────────────────────────────
         1)
             sec "src/app/"
-            # root
             cf "$SRC/app/globals.css"
             cf "$SRC/app/layout.tsx"
             cf "$SRC/app/page.tsx"
-            # routes
             cf "$SRC/app/aktivasi/page.tsx"
             cf "$SRC/app/api/aktivasi/route.ts"
             cf "$SRC/app/dashboard/page.tsx"
@@ -204,8 +203,14 @@ run_layer() {
             cf "$SRC/lib/utils.ts"
             ;;
 
-        # ── 12. src/proxy.ts ────────────────────────────────────
+        # ── 12. src/lib/config/ ─────────────────────────────────
         12)
+            sec "src/lib/config/"
+            cf "$SRC/lib/config/features.ts"
+            ;;
+
+        # ── 13. src/proxy.ts ────────────────────────────────────
+        13)
             sec "src/proxy.ts"
             cf "$SRC/proxy.ts"
             ;;
@@ -218,11 +223,11 @@ run_layer() {
 
 # ── dispatch ──────────────────────────────────────────────────────
 if echo "$INPUT" | grep -qw "99"; then
-    for i in 1 2 3 4 5 6 7 8 9 10 11 12; do run_layer $i; done
+    for i in 1 2 3 4 5 6 7 8 9 10 11 12 13; do run_layer $i; done
 elif echo "$INPUT" | grep -qw "88"; then
     for i in 2 3 4 5 6; do run_layer $i; done
 elif echo "$INPUT" | grep -qw "77"; then
-    for i in 7 8 9 10 11; do run_layer $i; done
+    for i in 7 8 9 10 11 12; do run_layer $i; done
 else
     for i in $INPUT; do run_layer "$i"; done
 fi

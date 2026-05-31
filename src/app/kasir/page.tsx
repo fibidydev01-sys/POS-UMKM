@@ -40,8 +40,8 @@ export default function KasirPage() {
   const [saving, setSaving] = React.useState(false);
   const [struk, setStruk] = React.useState<HasilTransaksi | null>(null);
 
-  // V1: cart = cartRaw (tidak ada promo item).
-  // Final: cart = cartRaw + promo_free items dari engine.
+  // V1: cart = cartRaw (promo engine tidak aktif).
+  // V2: cart = cartRaw + promo_free items dari engine.
   const cart = React.useMemo(
     () => features.promoEngine ? applyPromo(cartRaw, promoRules) : cartRaw,
     [cartRaw, promoRules]
@@ -61,11 +61,9 @@ export default function KasirPage() {
           getMenuTersedia(u.umkm_id),
           getKategori(u.umkm_id),
           getConfig(u.umkm_id),
-          // V1: skip DB query, DiskonInput tampilkan hardcoded preset
-          features.diskonDariDB
-            ? getDiskonPreset(u.umkm_id)
-            : Promise.resolve([]),
-          // V1: skip DB query, promo engine tidak aktif
+          // Preset diskon selalu dari DB — aktif di V1 dan V2
+          getDiskonPreset(u.umkm_id),
+          // Promo rule: hanya load di V2 (engine tidak aktif di V1)
           features.promoEngine
             ? getPromoAktif(u.umkm_id)
             : Promise.resolve([]),

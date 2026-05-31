@@ -1,90 +1,74 @@
-# POS UMKM — Changes Final Bundle
+# POS UMKM — Changes Bundle V1+V2
+
+## Pembagian Fitur V1 vs V2
+
+| Fitur | V1 | V2 |
+|---|---|---|
+| Cash + QRIS | ✅ | ✅ |
+| Transfer + Debit | ❌ | ✅ |
+| Void transaksi | ✅ | ✅ |
+| Refund transaksi | ❌ | ✅ |
+| **Preset diskon (dari DB)** | **✅** | **✅** |
+| **Kelola preset diskon** | **✅** | **✅** |
+| BOGO / Buy2Get1 | ❌ | ✅ |
+| Kelola program promo | ❌ | ✅ |
+
+**Kunci:** Preset diskon AKTIF di V1 maupun V2. Default 4 preset
+(5%, 10%, 15%, 20%) di-seed otomatis saat aktivasi kode.
+
+---
+
+## Feature Flags (features.ts)
+
+```typescript
+// 4 flags saja — diskonDariDB dihapus (preset selalu dari DB)
+export const features = {
+  paymentExtended: isV2,   // Transfer + Debit
+  refund: isV2,            // Refund button
+  promoEngine: isV2,       // BOGO engine
+  promoManagement: isV2,   // Card Program Promo di pengaturan
+}
+```
+
+---
 
 ## Schema Fixes (schema.sql)
 
-### FIX-01: promo_rule BOGO constraint
-- **Bug:** `CHECK (qty_gratis < qty_beli)` — BOGO gagal INSERT
-  karena beli=1, gratis=1 → `1 < 1 = FALSE`
-- **Fix:** `CHECK (qty_gratis <= qty_beli)`
-- **Impact:** Tanpa fix ini, tombol "Tambah Promo BOGO" selalu error
+**FIX-01:** `promo_rule` — `CHECK (qty_gratis <= qty_beli)`
+- Sebelumnya `<` memblok BOGO (beli=1, gratis=1 → 1 < 1 = FALSE)
 
-### FIX-02: discounted item tanpa preset_id
-- **Bug:** `CHECK (... AND diskon_preset_id IS NOT NULL)` memblok
-  V1 ENV mode yang pakai hardcoded preset (preset_id = null)
-- **Fix:** Hapus syarat preset_id, cukup `diskon_persen > 0`
-- **Impact:** Tanpa fix ini, transaksi dengan diskon di V1 mode selalu
-  ditolak DB (INSERT transaction_items gagal)
+**FIX-02:** `transaction_items` — discounted item tidak wajib preset_id
+- Sebelumnya `AND diskon_preset_id IS NOT NULL` menyebabkan FK error
 
 ---
 
-## Code Changes
+## File Changes
 
-### `src/lib/config/features.ts` — NEW
-Feature flags dari ENV var `NEXT_PUBLIC_POS_VERSION`.
-
-```
-NEXT_PUBLIC_POS_VERSION=v1     → V1 experience (default)
-NEXT_PUBLIC_POS_VERSION=final  → Final experience
-```
-
-| Flag | V1 | Final |
+| File | Status | Perubahan |
 |---|---|---|
-| paymentExtended | Cash + QRIS saja | + Transfer + Debit |
-| refund | Tidak ada | Ada |
-| promoEngine | Tidak aktif | BOGO + Buy2Get1 |
-| diskonDariDB | Hardcoded 5/10/15/20% | Dari DB |
-| pengaturanLanjutan | Tanpa card Diskon+Promo | Dengan card |
-
-### `src/lib/db/transaksi.ts` — 2 fixes
-1. `hasDiskon`: hapus `&& diskonHeaderPresetId !== null`
-   Sebelumnya diskon tidak diterapkan jika preset_id = null (V1 mode)
-2. `getAnalisaDiskon`: fallback nama ke `Diskon X%` jika preset null
-   Sebelumnya tampil "Unknown" di dashboard analisa diskon
-
-### `src/app/kasir/page.tsx`
-- Import `features`
-- `getDiskonPreset`: hanya dipanggil jika `features.diskonDariDB`
-- `getPromoAktif`: hanya dipanggil jika `features.promoEngine`
-- `applyPromo`: hanya dijalankan jika `features.promoEngine`
-
-### `src/components/kasir/diskon-input.tsx`
-- V1 mode: tampilkan hardcoded [5, 10, 15, 20]% (preset_id = null)
-- Final mode: load dari DB (existing behavior)
-
-### `src/components/kasir/keranjang-panel.tsx`
-- V1 mode: 2 payment method (Cash + QRIS)
-- Final mode: 4 payment method (+ Transfer + Debit)
-
-### `src/app/riwayat/page.tsx`
-- Tombol Void: selalu ada (V1 dan Final)
-- Tombol Refund: `{features.refund && <Button>Refund</Button>}`
-
-### `src/app/pengaturan/page.tsx`
-- Card "Preset Diskon" + "Program Promo": `{features.pengaturanLanjutan && ...}`
-- V1 mode: kedua card disembunyikan
+| `src/lib/config/features.ts` | NEW | 4 flags, hapus `diskonDariDB` |
+| `src/lib/db/transaksi.ts` | FIXED | `hasDiskon` fix + `AnalisaDiskon` fallback |
+| `src/app/kasir/page.tsx` | UPDATED | Preset selalu dari DB, promo conditional |
+| `src/components/kasir/diskon-input.tsx` | SIMPLIFIED | Hapus hardcoded V1 mode |
+| `src/components/kasir/keranjang-panel.tsx` | UPDATED | 2 vs 4 payment method |
+| `src/app/riwayat/page.tsx` | UPDATED | Refund button V2 only |
+| `src/app/pengaturan/page.tsx` | UPDATED | Preset Diskon selalu tampil, Promo V2 only |
 
 ---
 
-## Cara Deploy
+## Deploy
 
-### Fresh install
+### .env.local
 ```
-1. Jalankan schema.sql di Supabase SQL Editor
-2. Deploy kode dengan NEXT_PUBLIC_POS_VERSION=v1
-3. Tes fitur V1
-4. Saat siap: ubah ENV ke final, redeploy
+NEXT_PUBLIC_POS_VERSION=v1   # launch awal
+NEXT_PUBLIC_POS_VERSION=v2   # flip ke V2
 ```
 
-### Schema sudah ada (existing install)
-```
-1. Jalankan migration.sql di Supabase SQL Editor
-2. Update file src/ sesuai bundle ini
-3. Ubah NEXT_PUBLIC_POS_VERSION sesuai kebutuhan
-4. Redeploy
-```
+### Kode Aktivasi
+| Kode | version_access | Experience |
+|---|---|---|
+| UMKM-MAMTA-01, UMKM-PILOT-02, dll | v1 | V1 |
+| UMKM-V2-01, UMKM-V2-02, UMKM-V2-TEST | v2 | V2 |
 
-### Flip ke Final
-```
-NEXT_PUBLIC_POS_VERSION=v1    →  NEXT_PUBLIC_POS_VERSION=final
-Redeploy → selesai
-```
+> Catatan: `version_access` di DB hanya untuk display (`app_version` di info card).
+> Feature experience dikontrol ENV, bukan DB.

@@ -1,55 +1,58 @@
 /**
- * Feature flags — satu ENV var mengontrol V1 vs Final experience.
+ * Feature flags — satu ENV var mengontrol V1 vs V2 experience.
  *
  * .env.local / hosting env:
- *   NEXT_PUBLIC_POS_VERSION=v1     → V1 (default, aman untuk early launch)
- *   NEXT_PUBLIC_POS_VERSION=final  → Final (semua fitur aktif)
+ *   NEXT_PUBLIC_POS_VERSION=v1  → V1 (default, aman untuk early launch)
+ *   NEXT_PUBLIC_POS_VERSION=v2  → V2 (semua fitur aktif)
  *
- * NEXT_PUBLIC_ karena dikonsumsi client component secara synchronous.
- * Bukan rahasia — hanya toggle UX, bukan kredensial.
+ * Flip: ubah ENV → redeploy → selesai.
  *
- * Flip procedure:
- *   1. Ubah NEXT_PUBLIC_POS_VERSION=final di .env.local / hosting env
- *   2. Redeploy
- *   3. Done — semua user langsung dapat Final experience
+ * ── Perbandingan V1 vs V2 ────────────────────────────────────
+ *
+ * | Fitur                       | V1  | V2  |
+ * |-----------------------------|-----|-----|
+ * | Cash + QRIS                 | ✅  | ✅  |
+ * | Transfer + Debit            | ❌  | ✅  |
+ * | Void transaksi              | ✅  | ✅  |
+ * | Refund transaksi            | ❌  | ✅  |
+ * | Preset diskon (dari DB)     | ✅  | ✅  |  ← SAMA di V1 dan V2
+ * | Kelola preset diskon        | ✅  | ✅  |  ← SAMA di V1 dan V2
+ * | BOGO / Buy2Get1             | ❌  | ✅  |
+ * | Kelola program promo        | ❌  | ✅  |
  */
 
 const VERSION = (process.env.NEXT_PUBLIC_POS_VERSION ?? "v1").trim().toLowerCase();
-const isFinal = VERSION === "final";
+const isV2 = VERSION === "v2";
 
 export const features = {
   /**
    * Transfer bank + kartu debit di kasir.
-   * V1: hanya Cash + QRIS.
-   * Final: Cash + QRIS + Transfer + Debit.
+   * V1: Cash + QRIS saja.
+   * V2: Cash + QRIS + Transfer + Debit.
    */
-  paymentExtended: isFinal,
+  paymentExtended: isV2,
 
   /**
    * Tombol Refund di riwayat transaksi.
-   * V1: hanya Void (cancel tanpa uang kembali).
-   * Final: Void + Refund (dengan alasan wajib).
+   * V1: hanya Void.
+   * V2: Void + Refund (dengan alasan wajib).
    */
-  refund: isFinal,
+  refund: isV2,
 
   /**
    * Engine promo BOGO / Buy2Get1.
-   * V1: tidak load promo_rule dari DB, cart = cartRaw.
-   * Final: load + apply promo, item gratis muncul di keranjang.
+   * V1: tidak aktif — cart tidak diproses promo engine.
+   * V2: aktif — item gratis otomatis muncul di keranjang.
    */
-  promoEngine: isFinal,
+  promoEngine: isV2,
 
   /**
-   * Load preset diskon dari DB.
-   * V1: hardcoded [5, 10, 15, 20]% — preset_id = null saat simpan.
-   * Final: load dari tabel diskon_preset — preset_id tersimpan di DB.
+   * Card "Program Promo" di halaman Pengaturan.
+   * V1: disembunyikan — fitur BOGO belum aktif.
+   * V2: muncul — owner bisa kelola promo BOGO.
+   *
+   * CATATAN: Card "Preset Diskon" TIDAK dipengaruhi flag ini.
+   * Preset diskon dari DB aktif di V1 dan V2.
    */
-  diskonDariDB: isFinal,
-
-  /**
-   * Card "Preset Diskon" + "Program Promo" di halaman Pengaturan.
-   * V1: disembunyikan (link tidak muncul).
-   * Final: muncul, owner bisa kelola preset dan promo.
-   */
-  pengaturanLanjutan: isFinal,
+  promoManagement: isV2,
 } as const;

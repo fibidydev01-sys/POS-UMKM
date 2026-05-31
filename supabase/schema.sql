@@ -1,6 +1,6 @@
 -- ============================================================
 -- POS UMKM — Schema Final (Owner-Only + BOGO)
--- Versi  : 3.1 (fix qty_gratis + fix discounted constraint)
+-- Versi  : 3.1 (V1 + V2) (fix qty_gratis + fix discounted constraint)
 -- Target : Supabase (PostgreSQL)
 -- Scope  : Single UMKM, Single Owner, No Auth, BOGO aktif
 -- ============================================================
@@ -483,7 +483,10 @@ INSERT INTO aktivasi_kode (kode, version_access) VALUES
     ('UMKM-MAMTA-01', 'v1'),
     ('UMKM-PILOT-02', 'v1'),
     ('UMKM-TEST-03',  'v1'),
-    ('UMKM-DEV-04',   'v1')
+    ('UMKM-DEV-04',   'v1'),
+    ('UMKM-V2-01',    'v2'),
+    ('UMKM-V2-02',    'v2'),
+    ('UMKM-V2-TEST',  'v2')
 ON CONFLICT (kode) DO NOTHING;
 
 

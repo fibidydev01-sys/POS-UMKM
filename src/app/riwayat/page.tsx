@@ -186,7 +186,7 @@ export default function RiwayatPage() {
           </p>
         )}
 
-        {/* Form refund — hanya Final mode + transaksi completed */}
+        {/* Form refund — hanya V2 mode + transaksi completed */}
         {features.refund && showRefundForm && selected?.status === "completed" && (
           <div className="mt-3 flex flex-col gap-2">
             <p className="text-sm font-semibold">Alasan refund (wajib)</p>
@@ -223,7 +223,7 @@ export default function RiwayatPage() {
               {voidLoading ? "…" : "Void"}
             </Button>
 
-            {/* Refund — hanya Final mode */}
+            {/* Refund — hanya V2 mode */}
             {features.refund && (
               <Button
                 variant="ghost"

@@ -20,9 +20,9 @@ const PAYMENT_LABELS: Record<string, string> = {
   debit:    "💳 Debit",
 };
 
-// V1: hanya cash + qris. Final: semua 4 metode.
+// V1: hanya cash + qris. V2: semua 4 metode.
 const PAYMENT_METHODS_V1    = ["cash", "qris"] as const;
-const PAYMENT_METHODS_FINAL = ["cash", "qris", "transfer", "debit"] as const;
+const PAYMENT_METHODS_V2 = ["cash", "qris", "transfer", "debit"] as const;
 
 export default function KeranjangPanel({
   open, onOpenChange,
@@ -63,7 +63,7 @@ export default function KeranjangPanel({
   const totalQtyRaw = cartRaw.reduce((s, c) => s + c.qty, 0);
 
   const paymentMethods = features.paymentExtended
-    ? PAYMENT_METHODS_FINAL
+    ? PAYMENT_METHODS_V2
     : PAYMENT_METHODS_V1;
 
   return (

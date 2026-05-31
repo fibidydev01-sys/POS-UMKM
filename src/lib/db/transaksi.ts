@@ -65,7 +65,7 @@ export async function generateNomorOrder(umkmId: string): Promise<string> {
 // ── Simpan transaksi ──────────────────────────────────────────
 
 /**
- * Mendukung item_type = 'promo_free' dan triggered_by_item_id (Final mode).
+ * Mendukung item_type = 'promo_free' dan triggered_by_item_id (V2 mode).
  * Juga mendukung diskon tanpa preset_id (V1 ENV mode).
  *
  * FIX: hasDiskon tidak lagi bergantung pada diskonHeaderPresetId !== null.

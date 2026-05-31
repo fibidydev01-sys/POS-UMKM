@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { getUmkmId, getOwnerId } from "@/lib/utils/umkm-id";
+import { getUmkmId } from "@/lib/utils/umkm-id";
 import { getConfig, updateProfil, type UmkmConfig } from "@/lib/db/config";
 import { exportDanDownload } from "@/lib/export/excel";
 import { importDariFile } from "@/lib/export/import";
@@ -132,22 +132,20 @@ export default function PengaturanPage() {
         </CardContent>
       </Card>
 
-      {/* Preset Diskon — hanya Final mode */}
-      {features.pengaturanLanjutan && (
-        <Card className="mb-4">
-          <CardHeader><CardTitle className="text-base">Preset Diskon</CardTitle></CardHeader>
-          <CardContent>
-            <NavLink
-              href="/pengaturan/diskon"
-              icon={<Tag className="h-5 w-5 text-primary" />}
-              label="Kelola Preset Diskon"
-            />
-          </CardContent>
-        </Card>
-      )}
+      {/* Preset Diskon — aktif di V1 dan V2 */}
+      <Card className="mb-4">
+        <CardHeader><CardTitle className="text-base">Preset Diskon</CardTitle></CardHeader>
+        <CardContent>
+          <NavLink
+            href="/pengaturan/diskon"
+            icon={<Tag className="h-5 w-5 text-primary" />}
+            label="Kelola Preset Diskon"
+          />
+        </CardContent>
+      </Card>
 
-      {/* Program Promo — hanya Final mode */}
-      {features.pengaturanLanjutan && (
+      {/* Program Promo — hanya V2 (BOGO belum aktif di V1) */}
+      {features.promoManagement && (
         <Card className="mb-4">
           <CardHeader><CardTitle className="text-base">Program Promo</CardTitle></CardHeader>
           <CardContent>

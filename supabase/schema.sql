@@ -1,23 +1,16 @@
 -- ============================================================
 -- POS UMKM — Schema Final (Owner-Only + BOGO)
--- Versi  : 3.1 (V1 + V2) (fix qty_gratis + fix discounted constraint)
+-- Versi  : (V1 + V2) — VERIFIED FINAL
 -- Target : Supabase (PostgreSQL)
 -- Scope  : Single UMKM, Single Owner, No Auth, BOGO aktif
 -- ============================================================
--- CHANGELOG dari 3.0:
---   FIX-01: promo_rule CHECK (qty_gratis <= qty_beli)
---           Sebelumnya < yang memblok BOGO (qty_beli=1, qty_gratis=1)
---   FIX-02: transaction_items — discounted item tidak wajib preset_id
---           Sebelumnya AND diskon_preset_id IS NOT NULL memblok V1 ENV mode
 -- ============================================================
 -- CARA RUN:
---   1. Buka Supabase Dashboard → SQL Editor
---   2. Paste seluruh file ini
---   3. Klik Run
+--   1. Jalankan CLEAN SLATE SQL terlebih dahulu (bila schema lama ada)
+--   2. Buka Supabase Dashboard → SQL Editor
+--   3. Paste seluruh file ini → Klik Run
 --   4. Aman dirun ulang — semua pakai IF NOT EXISTS / OR REPLACE
---   5. Kalau schema sudah ada: jalankan migration.sql saja
 -- ============================================================
-
 
 -- ============================================================
 -- STEP 0: ENUM TYPES
@@ -63,6 +56,9 @@ CREATE TABLE IF NOT EXISTS aktivasi_kode (
 
 -- ============================================================
 -- STEP 2: UMKM CONFIG
+-- Field: nama_umkm, alamat, no_telp, footer_struk, app_version
+-- NOTE: paper_width TIDAK ada di Supabase — disimpan di localStorage browser
+--       (Next.js) atau di tabel pengaturan SQLite (React Native).
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS umkm_config (
@@ -171,8 +167,6 @@ CREATE TABLE IF NOT EXISTS diskon_preset (
 --
 -- FIX-01: CHECK (qty_gratis <= qty_beli) — sebelumnya < yang memblok BOGO.
 -- BOGO: qty_beli=1, qty_gratis=1 → 1 <= 1 = TRUE ✓
---
--- KL-01: Overlap periode tidak dicegah DB. Application layer yang cek.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS promo_rule (
@@ -201,6 +195,7 @@ CREATE TABLE IF NOT EXISTS promo_rule (
 -- ============================================================
 -- STEP 8: TRANSAKSI (header)
 -- grand_total dihitung server, di-enforce trigger.
+-- payment_method: 'cash' (bukan 'tunai' — ini Supabase/Next.js side)
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS transaksi (
@@ -305,7 +300,6 @@ CREATE TABLE IF NOT EXISTS transaction_items (
     ),
 
     -- FIX-02: discounted: diskon wajib, preset OPSIONAL (NULL ok untuk V1 ENV mode)
-    -- Sebelumnya: AND diskon_preset_id IS NOT NULL — memblok hardcoded preset tanpa UUID
     CHECK (
         item_type <> 'discounted'
         OR diskon_persen > 0
@@ -399,7 +393,6 @@ CREATE TRIGGER trg_validate_triggered_by_same_transaction
 -- ============================================================
 -- STEP 12: HELPER FUNCTION — nomor_order generator
 -- Format: YYYYMMDD-XXXX (zona Jakarta). Reset harian.
--- KL-03: SELECT MAX+1 aman untuk single owner.
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION generate_nomor_order(p_umkm_id UUID)
@@ -491,7 +484,7 @@ ON CONFLICT (kode) DO NOTHING;
 
 
 -- ============================================================
--- STEP 15: RLS — DISABLED
+-- STEP 15: RLS — DISABLED (default PostgreSQL)
 -- Tidak ada Supabase Auth. Isolasi via .eq('umkm_id', ...).
 -- ============================================================
 -- Default PostgreSQL: RLS = OFF. Tidak perlu eksplisit disable.
@@ -527,7 +520,7 @@ ON CONFLICT (kode) DO NOTHING;
 -- WHERE schemaname = 'public'
 -- ORDER BY tablename;
 
--- 5. Check FIX-01 (harus >= bukan <):
+-- 5. Check FIX-01 (harus <= bukan <):
 -- SELECT pg_get_constraintdef(oid) FROM pg_constraint
 -- WHERE conrelid = 'promo_rule'::regclass AND contype = 'c'
 --   AND pg_get_constraintdef(oid) LIKE '%qty_gratis%';

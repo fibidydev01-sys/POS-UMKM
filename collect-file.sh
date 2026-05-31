@@ -177,7 +177,7 @@ run_layer() {
         6)
             sec "src/components/shared/"
             cf "$SRC/components/shared/alert-backup.tsx"
-            cf "$SRC/components/shared/bottom-nav.tsx"
+            cf "$SRC/components/shared/app-shell.tsx"
             cf "$SRC/components/shared/empty-state.tsx"
             ;;
         7)
@@ -189,6 +189,7 @@ run_layer() {
             cf "$SRC/lib/db/config.ts"
             cf "$SRC/lib/db/diskon-preset.ts"
             cf "$SRC/lib/db/menu.ts"
+            cf "$SRC/lib/db/omzet-banding.ts"
             cf "$SRC/lib/db/promo-rule.ts"
             cf "$SRC/lib/db/transaksi.ts"
             cf "$SRC/lib/db/users.ts"
@@ -207,6 +208,7 @@ run_layer() {
             sec "src/lib/utils/ + src/lib/utils.ts"
             cf "$SRC/lib/utils/currency.ts"
             cf "$SRC/lib/utils/date.ts"
+            cf "$SRC/lib/utils/paper.ts"
             cf "$SRC/lib/utils/umkm-id.ts"
             cf "$SRC/lib/utils.ts"
             ;;

@@ -1,6 +1,6 @@
 import { supabase } from "../supabase/client";
 import {
-  startOfTodayISO, startOfMonthISO, startOfDaysAgoISO, jakartaDateStr, nHariTerakhir,
+  startOfMonthISO, startOfDaysAgoISO, jakartaDateStr, nHariTerakhir,
 } from "../utils/date";
 
 // ── Interfaces ────────────────────────────────────────────────
@@ -54,6 +54,41 @@ export interface HasilTransaksi {
   items: TransactionItem[];
 }
 
+// Internal type untuk promo engine extended fields
+interface PromoCartItem extends CartItem {
+  _promo_pair_index?: number;
+  _is_promo_free?: boolean;
+}
+
+// Supabase row types untuk query results
+interface TransaksiRow {
+  created_at: string;
+  grand_total: number;
+  status: string;
+}
+
+interface BogoRow {
+  harga_satuan: number;
+  qty: number;
+  transaksi: { status: string; created_at: string } | { status: string; created_at: string }[];
+}
+
+interface TopProdukRow {
+  nama_produk: string;
+  qty: number;
+  final_price_item: number;
+  item_type: string;
+  transaksi: { status: string; created_at: string } | { status: string; created_at: string }[];
+}
+
+interface AnalisaDiskonRow {
+  harga_satuan: number;
+  qty: number;
+  diskon_persen: number;
+  diskon_preset: { nama: string }[] | null;
+  transaksi: { status: string; created_at: string } | { status: string; created_at: string }[];
+}
+
 // ── Nomor order ───────────────────────────────────────────────
 
 export async function generateNomorOrder(umkmId: string): Promise<string> {
@@ -99,8 +134,6 @@ export async function simpanTransaksi(
     }
 
     // FIX: hasDiskon hanya cek persen > 0.
-    // Sebelumnya: diskonHeaderPersen > 0 && diskonHeaderPresetId !== null
-    // Bug: V1 mode (preset_id = null) tidak pernah masuk kondisi hasDiskon → diskon tidak diterapkan.
     const hasDiskon = diskonHeaderPersen > 0;
     const persen = hasDiskon ? diskonHeaderPersen : 0;
     const final_price_item = Math.round(c.harga_satuan * c.qty * (1 - persen / 100));
@@ -149,7 +182,8 @@ export async function simpanTransaksi(
 
   for (const item of itemsHitung) {
     const isPromoFree = item.item_type === "promo_free";
-    const pairIndex = (item as any)._promo_pair_index ?? null;
+    const extended = item as PromoCartItem;
+    const pairIndex = extended._promo_pair_index ?? null;
     const pairKey = item.menu_item_id && pairIndex !== null
       ? `${item.menu_item_id}_${pairIndex}`
       : null;
@@ -270,6 +304,8 @@ export interface RingkasanOmzet {
   orderBulan: number;
   refundBulan: number;
   jumlahRefundBulan: number;
+  nilaiBogoBulan: number;
+  jumlahItemGratisBulan: number;
 }
 
 export async function getRingkasanOmzet(umkmId: string): Promise<RingkasanOmzet> {
@@ -281,7 +317,7 @@ export async function getRingkasanOmzet(umkmId: string): Promise<RingkasanOmzet>
     .gte("created_at", from);
   if (error) throw error;
 
-  const rows = data ?? [];
+  const rows = (data ?? []) as TransaksiRow[];
   const hariIniStr = jakartaDateStr(new Date());
   const bulanStr = hariIniStr.slice(0, 7);
   const mingguFrom = startOfDaysAgoISO(7);
@@ -291,6 +327,7 @@ export async function getRingkasanOmzet(umkmId: string): Promise<RingkasanOmzet>
     omzetMinggu: 0, orderMinggu: 0,
     omzetBulan: 0, orderBulan: 0,
     refundBulan: 0, jumlahRefundBulan: 0,
+    nilaiBogoBulan: 0, jumlahItemGratisBulan: 0,
   };
 
   for (const row of rows) {
@@ -308,6 +345,21 @@ export async function getRingkasanOmzet(umkmId: string): Promise<RingkasanOmzet>
       r.jumlahRefundBulan++;
     }
   }
+
+  // Nilai item gratis (BOGO) bulan ini — dari transaction_items item_type promo_free
+  const { data: bogoData } = await supabase
+    .from("transaction_items")
+    .select("harga_satuan, qty, transaksi!inner(status, created_at)")
+    .eq("umkm_id", umkmId)
+    .eq("item_type", "promo_free")
+    .eq("transaksi.status", "completed")
+    .gte("transaksi.created_at", startOfMonthISO());
+
+  for (const row of (bogoData ?? []) as BogoRow[]) {
+    r.nilaiBogoBulan += row.harga_satuan * row.qty;
+    r.jumlahItemGratisBulan += row.qty;
+  }
+
   return r;
 }
 
@@ -325,7 +377,7 @@ export async function getRingkasanPerKasir(
     .gte("created_at", from);
   if (error) throw error;
 
-  const rows = data ?? [];
+  const rows = (data ?? []) as TransaksiRow[];
   const hariIniStr = jakartaDateStr(new Date());
   const bulanStr = hariIniStr.slice(0, 7);
   const mingguFrom = startOfDaysAgoISO(7);
@@ -335,6 +387,7 @@ export async function getRingkasanPerKasir(
     omzetMinggu: 0, orderMinggu: 0,
     omzetBulan: 0, orderBulan: 0,
     refundBulan: 0, jumlahRefundBulan: 0,
+    nilaiBogoBulan: 0, jumlahItemGratisBulan: 0,
   };
   for (const row of rows) {
     const ds = jakartaDateStr(row.created_at);
@@ -358,7 +411,7 @@ export async function getOmzet7Hari(umkmId: string): Promise<OmzetHarian[]> {
 
   const hari = nHariTerakhir(7).map((h) => ({ ...h, omzet: 0 }));
   const idx = new Map(hari.map((h, i) => [h.tanggal, i]));
-  for (const row of data ?? []) {
+  for (const row of (data ?? []) as { created_at: string; grand_total: number }[]) {
     const i = idx.get(jakartaDateStr(row.created_at));
     if (i != null) hari[i].omzet += row.grand_total;
   }
@@ -377,7 +430,7 @@ export async function getTopProduk(umkmId: string, limit = 5): Promise<TopProduk
   if (error) throw error;
 
   const map = new Map<string, TopProduk>();
-  for (const row of (data ?? []) as any[]) {
+  for (const row of (data ?? []) as TopProdukRow[]) {
     const cur = map.get(row.nama_produk) ?? { nama_produk: row.nama_produk, total_terjual: 0, total_omzet: 0 };
     cur.total_terjual += row.qty;
     cur.total_omzet += row.final_price_item;
@@ -386,7 +439,12 @@ export async function getTopProduk(umkmId: string, limit = 5): Promise<TopProduk
   return [...map.values()].sort((a, b) => b.total_terjual - a.total_terjual).slice(0, limit);
 }
 
-export interface AnalisaDiskon { nama_preset: string; kali_dipakai: number; total_nilai_diskon: number; }
+export interface AnalisaDiskon {
+  nama_preset: string;
+  persen?: number;
+  kali_dipakai: number;
+  total_nilai_diskon: number;
+}
 
 export async function getAnalisaDiskon(umkmId: string, limit = 10): Promise<AnalisaDiskon[]> {
   const { data, error } = await supabase
@@ -399,11 +457,11 @@ export async function getAnalisaDiskon(umkmId: string, limit = 10): Promise<Anal
   if (error) throw error;
 
   const map = new Map<string, AnalisaDiskon>();
-  for (const row of (data ?? []) as any[]) {
+  for (const row of (data ?? []) as AnalisaDiskonRow[]) {
     // FIX: fallback ke "Diskon X%" jika preset_id null (V1 ENV mode pakai hardcoded preset)
-    const nama = row.diskon_preset?.nama ?? `Diskon ${row.diskon_persen}%`;
+    const nama = (row.diskon_preset?.[0]?.nama) ?? `Diskon ${row.diskon_persen}%`;
     const nilaiDiskon = Math.round(row.harga_satuan * row.qty * row.diskon_persen / 100);
-    const cur = map.get(nama) ?? { nama_preset: nama, kali_dipakai: 0, total_nilai_diskon: 0 };
+    const cur = map.get(nama) ?? { nama_preset: nama, persen: row.diskon_persen, kali_dipakai: 0, total_nilai_diskon: 0 };
     cur.kali_dipakai++;
     cur.total_nilai_diskon += nilaiDiskon;
     map.set(nama, cur);

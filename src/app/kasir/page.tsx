@@ -123,17 +123,28 @@ export default function KasirPage() {
 
   async function bayar() {
     if (!user || cartRaw.length === 0 || saving) return;
-    const uangNum = paymentMethod === "cash" ? parseRupiah(uangDiterima) : null;
-    if (paymentMethod === "cash" && (uangNum === null || uangNum < grandTotal)) {
-      alert("Uang diterima kurang dari total belanja.");
-      return;
+
+    let method = paymentMethod;
+    let uangFinal: number | null = null;
+
+    if (features.payment) {
+      const parsed = method === "cash" ? parseRupiah(uangDiterima) : null;
+      if (method === "cash" && (parsed === null || parsed < grandTotal)) {
+        alert("Uang diterima kurang dari total belanja.");
+        return;
+      }
+      uangFinal = parsed;
+    } else {
+      // V1: catat langsung sebagai tunai, tanpa input uang.
+      method = "cash";
     }
+
     setSaving(true);
     try {
       const hasil = await simpanTransaksi(
         user.umkm_id, user.id, cart,
         diskonPresetId, diskonPersen,
-        paymentMethod, uangNum
+        method, uangFinal
       );
       setStruk(hasil);
       setKeranjangOpen(false);
@@ -176,7 +187,7 @@ export default function KasirPage() {
       )}
 
       {totalItem > 0 && (
-        <div className="fixed inset-x-0 bottom-[58px] z-30 px-4 print:hidden">
+        <div className="fixed inset-x-0 bottom-[58px] z-30 px-4 print:hidden md:bottom-4 md:left-[72px] xl:left-[200px]">
           <button
             onClick={() => setKeranjangOpen(true)}
             className="mx-auto flex w-full max-w-2xl items-center justify-between rounded-xl bg-primary px-4 py-3 text-primary-foreground shadow-lg active:scale-[0.99]"

@@ -7,18 +7,17 @@
  *
  * Flip: ubah ENV → redeploy → selesai.
  *
- * ── Perbandingan V1 vs V2 ────────────────────────────────────
+ * ── Selaras 1:1 dengan versi React Native (battle-tested) ────
  *
- * | Fitur                       | V1  | V2  |
- * |-----------------------------|-----|-----|
- * | Cash + QRIS                 | ✅  | ✅  |
- * | Transfer + Debit            | ❌  | ✅  |
- * | Void transaksi              | ✅  | ✅  |
- * | Refund transaksi            | ❌  | ✅  |
- * | Preset diskon (dari DB)     | ✅  | ✅  |  ← SAMA di V1 dan V2
- * | Kelola preset diskon        | ✅  | ✅  |  ← SAMA di V1 dan V2
- * | BOGO / Buy2Get1             | ❌  | ✅  |
- * | Kelola program promo        | ❌  | ✅  |
+ * | Fitur                                   | V1  | V2  |
+ * |-----------------------------------------|-----|-----|
+ * | Pilih metode bayar + uang/kembalian     | ❌  | ✅  |  (V1: tunai langsung)
+ * | Void transaksi                          | ✅  | ✅  |
+ * | Refund transaksi                        | ❌  | ✅  |
+ * | Preset diskon (dari DB)                 | ✅  | ✅  |  ← SAMA di V1 dan V2
+ * | Kelola preset diskon                    | ✅  | ✅  |  ← SAMA di V1 dan V2
+ * | BOGO / Buy2Get1                         | ❌  | ✅  |
+ * | Kelola program promo                    | ❌  | ✅  |
  */
 
 const VERSION = (process.env.NEXT_PUBLIC_POS_VERSION ?? "v1").trim().toLowerCase();
@@ -26,11 +25,11 @@ const isV2 = VERSION === "v2";
 
 export const features = {
   /**
-   * Transfer bank + kartu debit di kasir.
-   * V1: Cash + QRIS saja.
-   * V2: Cash + QRIS + Transfer + Debit.
+   * Pilihan metode bayar (QRIS/Transfer/Debit) + input uang & kembalian.
+   * V1: tidak ada pilihan metode — transaksi langsung dicatat sebagai TUNAI.
+   * V2: Tunai + QRIS + Transfer + Debit, lengkap dengan uang diterima & kembalian.
    */
-  paymentExtended: isV2,
+  payment: isV2,
 
   /**
    * Tombol Refund di riwayat transaksi.

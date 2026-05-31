@@ -10,7 +10,6 @@ import { formatTanggal, formatTanggalJam, formatBulanTahun } from "../utils/date
 export const BACKUP_SHEET_NAME = "BACKUP_DATA";
 
 // Kolom backup sesuai schema V1
-// Kolom lama yang tidak ada (subtotal_trx, diskon_nominal, catatan, dll) DIHAPUS
 export const BACKUP_HEADERS = [
   "transaksi_id",
   "nomor_order",
@@ -39,6 +38,9 @@ export interface HasilExport {
   pesan: string;
   jumlahBaris?: number;
 }
+
+// Type untuk baris backup (nilai null/string/number)
+type BackupRow = (string | number | null)[];
 
 export async function exportDanDownload(
   umkmId: string,
@@ -126,7 +128,7 @@ export async function exportDanDownload(
     XLSX.utils.book_append_sheet(wb, ws1, "Laporan");
 
     // ── Sheet 2: BACKUP_DATA (machine-readable) ──
-    const backup: (string | number | null)[][] = [[...BACKUP_HEADERS]];
+    const backup: BackupRow[] = [[...BACKUP_HEADERS]];
     let jumlahBaris = 0;
 
     for (const t of transaksi) {
@@ -177,7 +179,8 @@ export async function exportDanDownload(
     URL.revokeObjectURL(url);
 
     return { ok: true, pesan: `Berhasil mengekspor ${jumlahBaris} baris.`, jumlahBaris };
-  } catch (err: any) {
-    return { ok: false, pesan: err?.message || "Gagal mengekspor data." };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Gagal mengekspor data.";
+    return { ok: false, pesan: message };
   }
 }

@@ -1,13 +1,19 @@
 "use client";
 
+import * as React from "react";
 import type { UmkmConfig } from "@/lib/db/config";
 import type { Transaksi, TransactionItem } from "@/lib/db/transaksi";
 import { formatRupiah, formatAngka } from "@/lib/utils/currency";
 import { formatTanggalJam } from "@/lib/utils/date";
+import { getPaperWidth } from "@/lib/utils/paper";
+import { cn } from "@/lib/utils";
 
 /**
  * Struk dibungkus elemen id="area-struk".
  * CSS @media print (globals.css) hanya menampilkan elemen ini saat dicetak.
+ *
+ * Lebar kertas (58mm / 80mm) mengikuti preferensi perangkat (localStorage),
+ * dan ukuran @page disuntik dinamis ke <head> agar pratinjau cetak sesuai.
  */
 export default function StrukPrint({
   config,
@@ -18,6 +24,23 @@ export default function StrukPrint({
   trx: Transaksi;
   items: TransactionItem[];
 }) {
+  // Lebar kertas = preferensi perangkat (localStorage). Default 58mm.
+  const [paperWidth, setPaperWidth] = React.useState<58 | 80>(58);
+  React.useEffect(() => { setPaperWidth(getPaperWidth()); }, []);
+
+  // Suntik @page size sesuai lebar kertas (hanya berlaku saat cetak).
+  React.useEffect(() => {
+    const id = "struk-page-size";
+    let el = document.getElementById(id) as HTMLStyleElement | null;
+    if (!el) {
+      el = document.createElement("style");
+      el.id = id;
+      document.head.appendChild(el);
+    }
+    el.textContent = `@media print{@page{margin:4mm;size:${paperWidth}mm auto}}`;
+    return () => { el?.remove(); };
+  }, [paperWidth]);
+
   const garis = "border-t border-dashed border-black my-1";
 
   // Hitung diskon dari items untuk tampilan struk
@@ -36,10 +59,15 @@ export default function StrukPrint({
     debit: "Debit",
   };
 
+  const lebar80 = paperWidth === 80;
+
   return (
     <div
       id="area-struk"
-      className="mx-auto w-[58mm] bg-white px-1 py-2 font-mono text-[11px] leading-tight text-black"
+      className={cn(
+        "mx-auto bg-white px-1 py-2 font-mono leading-tight text-black",
+        lebar80 ? "w-[80mm] text-[12px]" : "w-[58mm] text-[11px]"
+      )}
     >
       {/* Header UMKM */}
       <div className="text-center">

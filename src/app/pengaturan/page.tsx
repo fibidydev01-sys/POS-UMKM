@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { getUmkmId } from "@/lib/utils/umkm-id";
 import { getConfig, updateProfil, type UmkmConfig } from "@/lib/db/config";
+import { getPaperWidth, setPaperWidth } from "@/lib/utils/paper";
 import { exportDanDownload } from "@/lib/export/excel";
 import { importDariFile } from "@/lib/export/import";
 import { features } from "@/lib/config/features";
@@ -13,6 +14,7 @@ import { Label, Textarea } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Download, Upload, Save, CheckCircle2, AlertCircle, Tag, ChevronRight, Gift } from "lucide-react";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 
 type Pesan = { tipe: "ok" | "err"; teks: string } | null;
 
@@ -28,6 +30,7 @@ export default function PengaturanPage() {
   const [alamat, setAlamat] = React.useState("");
   const [telp, setTelp] = React.useState("");
   const [footer, setFooter] = React.useState("");
+  const [lebar, setLebar] = React.useState<58 | 80>(58);
 
   const [saving, setSaving] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
@@ -37,6 +40,7 @@ export default function PengaturanPage() {
     const id = getUmkmId();
     if (!id) { router.replace("/aktivasi"); return; }
     setUmkmId(id);
+    setLebar(getPaperWidth());
 
     getConfig(id).then((c) => {
       setConfig(c);
@@ -58,6 +62,12 @@ export default function PengaturanPage() {
       flash({ tipe: "ok", teks: "Profil tersimpan." });
     } catch { flash({ tipe: "err", teks: "Gagal menyimpan profil." }); }
     finally { setSaving(false); }
+  }
+
+  function gantiLebar(w: 58 | 80) {
+    setLebar(w);
+    setPaperWidth(w);
+    flash({ tipe: "ok", teks: `Lebar kertas ${w}mm tersimpan.` });
   }
 
   async function ekspor() {
@@ -132,6 +142,32 @@ export default function PengaturanPage() {
         </CardContent>
       </Card>
 
+      {/* Lebar Kertas Struk — preferensi perangkat */}
+      <Card className="mb-4">
+        <CardHeader><CardTitle className="text-base">Lebar Kertas Struk</CardTitle></CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-3">
+            {([58, 80] as const).map((w) => (
+              <button
+                key={w}
+                onClick={() => gantiLebar(w)}
+                className={cn(
+                  "rounded-xl border py-3 text-sm font-bold transition-colors",
+                  lebar === w
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border bg-card text-muted-foreground hover:bg-secondary"
+                )}
+              >
+                {w} mm
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Lebar mengikuti printer thermal Anda. Tersimpan di perangkat ini.
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Preset Diskon — aktif di V1 dan V2 */}
       <Card className="mb-4">
         <CardHeader><CardTitle className="text-base">Preset Diskon</CardTitle></CardHeader>
@@ -174,14 +210,6 @@ export default function PengaturanPage() {
           <p className="text-xs text-muted-foreground">⚠️ Import bersifat <b>destruktif</b>.</p>
         </CardContent>
       </Card>
-
-      {/* Info */}
-      <Card className="mb-4">
-        <CardHeader><CardTitle className="text-base">Informasi</CardTitle></CardHeader>
-        <CardContent className="flex flex-col gap-1 text-sm">
-          <Baris label="Versi aplikasi" nilai={config?.app_version || "v1"} />
-        </CardContent>
-      </Card>
     </main>
   );
 }
@@ -195,14 +223,5 @@ function NavLink({ href, icon, label }: { href: string; icon: React.ReactNode; l
       <div className="flex items-center gap-3">{icon}<span className="font-semibold">{label}</span></div>
       <ChevronRight className="h-4 w-4 text-muted-foreground" />
     </Link>
-  );
-}
-
-function Baris({ label, nilai }: { label: string; nilai: string }) {
-  return (
-    <div className="flex items-center justify-between py-1">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-semibold capitalize">{nilai}</span>
-    </div>
   );
 }

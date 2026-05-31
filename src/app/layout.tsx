@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
-import BottomNav from "@/components/shared/bottom-nav";
+import AppShell from "@/components/shared/app-shell";
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -24,8 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="id" className={jakarta.variable}>
       <body className="min-h-dvh antialiased">
-        {children}
-        <BottomNav />
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

@@ -35,6 +35,10 @@
   --ring: #c2410c;
 
   --radius: 0.75rem;
+
+  /* ── Sidebar — lebar tetap, dipakai di AppShell via Tailwind arbitrary ── */
+  --sidebar-w-icon: 72px;   /* md–xl: icon only  */
+  --sidebar-w-full: 200px;  /* xl+  : icon + label */
 }
 
 @theme inline {
@@ -80,6 +84,15 @@ body {
 /* subtle scrollbar */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+
+/* ============================================================
+   FIXED CART BUTTON — kasir/page.tsx
+   Tombol keranjang floating harus tidak tertutup bottom nav (mobile)
+   atau sidebar (tablet). Kelas utility Tailwind di kasir/page.tsx
+   menangani ini via bottom-[58px] pada mobile.
+   Di tablet sidebar tidak mempengaruhi posisi fixed karena sidebar
+   adalah fixed element tersendiri, bukan offset container.
+   ============================================================ */
 
 /* ============================================================
    CETAK STRUK — hanya area #area-struk yang tampil saat print

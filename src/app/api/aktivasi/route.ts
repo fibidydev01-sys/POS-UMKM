@@ -5,13 +5,14 @@ import { createServerSupabase } from "@/lib/supabase/server";
 // seed umkm_config + users table + diskon preset default.
 // Tidak ada Supabase Auth — identitas via cookie umkm_id + owner_id.
 export async function POST(request: NextRequest) {
-  let kode = "";
+  let body: unknown;
   try {
-    const body = await request.json();
-    kode = String(body?.kode || "").trim();
+    body = await request.json();
   } catch {
     return NextResponse.json({ ok: false, pesan: "Permintaan tidak valid." }, { status: 400 });
   }
+
+  const kode = String((body as Record<string, unknown>)?.kode || "").trim();
 
   if (!kode) {
     return NextResponse.json({ ok: false, pesan: "Kode aktivasi wajib diisi." }, { status: 400 });
@@ -114,7 +115,7 @@ export async function POST(request: NextRequest) {
 
   if (!existingPreset || existingPreset.length === 0) {
     await supabase.from("diskon_preset").insert([
-      { umkm_id: umkmId, nama: "Diskon 5%",  persen: 5,  is_active: true, updated_by: ownerId },
+      { umkm_id: umkmId, nama: "Diskon 5%", persen: 5, is_active: true, updated_by: ownerId },
       { umkm_id: umkmId, nama: "Diskon 10%", persen: 10, is_active: true, updated_by: ownerId },
       { umkm_id: umkmId, nama: "Diskon 15%", persen: 15, is_active: true, updated_by: ownerId },
       { umkm_id: umkmId, nama: "Diskon 20%", persen: 20, is_active: true, updated_by: ownerId },

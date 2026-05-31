@@ -21,6 +21,15 @@ import type { PromoRule } from "../db/promo-rule";
  *   Pesan 4 → gratis 1, bayar 3
  *   Pesan 6 → gratis 2, bayar 4
  */
+
+// Internal type untuk extended CartItem dengan promo metadata
+interface PromoCartItem extends CartItem {
+  item_type?: "normal" | "discounted" | "promo_free";
+  final_price_item?: number;
+  _promo_pair_index?: number;
+  _is_promo_free?: boolean;
+}
+
 export function applyPromo(cart: CartItem[], rules: PromoRule[]): CartItem[] {
   if (rules.length === 0) return cart;
 
@@ -48,7 +57,6 @@ export function applyPromo(cart: CartItem[], rules: PromoRule[]): CartItem[] {
     const setSize = qty_beli + qty_gratis;
     const jumlahSet = Math.floor(item.qty / setSize);
     const qtyGratisTotal = jumlahSet * qty_gratis;
-    const qtyBayar = item.qty - qtyGratisTotal;
 
     if (qtyGratisTotal === 0) {
       // Belum cukup qty untuk trigger promo
@@ -61,16 +69,17 @@ export function applyPromo(cart: CartItem[], rules: PromoRule[]): CartItem[] {
     // (INSERT sequential di simpanTransaksi yang handle UUID-nya)
     for (let i = 0; i < jumlahSet; i++) {
       // Baris bayar (qty_beli per set)
-      result.push({
+      const bayarItem: PromoCartItem = {
         ...item,
         qty: qty_beli,
         diskon_preset_id: null,
         diskon_persen: 0,
-        _promo_pair_index: i, // internal — untuk pasangan triggered_by
-      } as any);
+        _promo_pair_index: i,
+      };
+      result.push(bayarItem as CartItem);
 
       // Baris gratis (qty_gratis per set)
-      result.push({
+      const gratisItem: PromoCartItem = {
         ...item,
         qty: qty_gratis,
         diskon_preset_id: null,
@@ -79,7 +88,8 @@ export function applyPromo(cart: CartItem[], rules: PromoRule[]): CartItem[] {
         final_price_item: 0,
         _promo_pair_index: i,
         _is_promo_free: true,
-      } as any);
+      };
+      result.push(gratisItem as CartItem);
     }
 
     // Sisa qty yang tidak masuk set promo
@@ -104,7 +114,8 @@ export function hitungGrandTotal(
   diskonPersen: number
 ): { subtotal: number; diskonNominal: number; grandTotal: number } {
   const subtotal = cart.reduce((s, c) => {
-    if ((c as any).item_type === "promo_free") return s;
+    const extended = c as PromoCartItem;
+    if (extended.item_type === "promo_free") return s;
     return s + c.harga_satuan * c.qty;
   }, 0);
 

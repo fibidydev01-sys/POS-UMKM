@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import { StrukPrint } from "./struk-print";
 import { CheckCircle2, Printer } from "lucide-react";
 
-/** Drawer struk sukses + cetak. */
 export function StrukDialog({
   struk,
   config,

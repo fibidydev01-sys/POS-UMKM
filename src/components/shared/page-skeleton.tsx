@@ -2,10 +2,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 type Variant = "kasir" | "dashboard" | "list" | "form";
 
-/**
- * PageSkeleton — pengganti string "Memuat…". Memberi perceived performance
- * dengan kerangka yang mendekati layout asli tiap halaman.
- */
 export function PageSkeleton({ variant }: { variant: Variant }) {
   if (variant === "kasir") {
     return (
@@ -58,7 +54,6 @@ export function PageSkeleton({ variant }: { variant: Variant }) {
     );
   }
 
-  // list
   return (
     <div className="mx-auto max-w-2xl px-4 pt-5">
       <Skeleton className="mb-1 h-4 w-20" />

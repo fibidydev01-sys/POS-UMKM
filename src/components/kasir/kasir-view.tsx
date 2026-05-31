@@ -25,13 +25,14 @@ import { LayoutToggle } from "./layout-toggle";
 import { KategoriList } from "@/components/menu/kategori-list";
 import { CartPanel } from "./cart-panel";
 import { StrukDialog } from "./struk-dialog";
+import { formatRupiah } from "@/lib/utils/currency";
 
 export function KasirView() {
   const router = useRouter();
   const { data, isLoading } = useKasirData();
 
   const [katAktif, setKatAktif] = React.useState<string | null>(null);
-  const [layout, setLayout] = React.useState<MenuLayout>("list"); // default List, tidak dipersist
+  const [layout, setLayout] = React.useState<MenuLayout>("list");
   const [keranjangOpen, setKeranjangOpen] = React.useState(false);
   const [struk, setStruk] = React.useState<HasilTransaksi | null>(null);
 
@@ -39,7 +40,6 @@ export function KasirView() {
   const items = useCartStore((s) => s.items);
   const tambah = useCartStore((s) => s.tambah);
   const ubahQty = useCartStore((s) => s.ubahQty);
-  const hapus = useCartStore((s) => s.hapus);
   const diskonPresetId = useCartStore((s) => s.diskonPresetId);
   const diskonPersen = useCartStore((s) => s.diskonPersen);
   const setDiskon = useCartStore((s) => s.setDiskon);
@@ -93,7 +93,9 @@ export function KasirView() {
 
       {menu.length === 0 ? (
         <Empty>
-          <EmptyMedia>🍽️</EmptyMedia>
+          <EmptyMedia>
+            <ShoppingCart className="h-10 w-10 text-muted-foreground/40" />
+          </EmptyMedia>
           <EmptyTitle>Belum ada menu</EmptyTitle>
           <EmptyDescription>Tambahkan produk dulu di halaman Menu.</EmptyDescription>
           <EmptyContent>
@@ -116,18 +118,18 @@ export function KasirView() {
         </>
       )}
 
-      {/* Tombol keranjang — FAB, posisi PERSIS sama dengan FAB "Tambah" di Menu.
-          (Sebelumnya bar full-width yang naik terlalu tinggi — diganti FAB.) */}
+      {/* Tombol keranjang — bar aksesibel persegi panjang rounded di atas nav */}
       {totalItem > 0 && (
         <button
           onClick={() => setKeranjangOpen(true)}
           aria-label={`Buka keranjang, ${totalItem} item`}
-          className="fixed bottom-[72px] right-4 z-30 grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform active:scale-95 md:bottom-6 print:hidden"
+          className="fixed bottom-[68px] left-4 right-4 z-30 flex items-center justify-between gap-3 rounded-xl bg-primary px-4 py-3 text-primary-foreground shadow-lg transition-transform active:scale-[0.99] md:bottom-4 md:left-auto md:right-6 md:w-auto md:min-w-[220px] print:hidden"
         >
-          <ShoppingCart className="h-6 w-6" />
-          <span className="absolute -right-1 -top-1 grid h-6 min-w-6 place-items-center rounded-full bg-accent px-1 text-xs font-bold text-accent-foreground ring-2 ring-background">
-            {totalItem}
-          </span>
+          <div className="flex items-center gap-2">
+            <ShoppingCart className="h-5 w-5" />
+            <span className="font-bold">{totalItem} item</span>
+          </div>
+          <span className="font-extrabold">{formatRupiah(grandTotal)}</span>
         </button>
       )}
 
@@ -137,7 +139,6 @@ export function KasirView() {
         cart={cart}
         cartRaw={items}
         onUbahQty={ubahQty}
-        onHapus={hapus}
         presets={presets}
         diskonPresetId={diskonPresetId}
         diskonPersen={diskonPersen}

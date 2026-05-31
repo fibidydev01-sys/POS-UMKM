@@ -44,7 +44,6 @@ export interface CartPanelProps {
   /** Keranjang mentah (pilihan kasir, editable). */
   cartRaw: CartItem[];
   onUbahQty: (menuItemId: string | null, delta: number) => void;
-  onHapus: (menuItemId: string | null) => void;
   presets: DiskonPreset[];
   diskonPresetId: string | null;
   diskonPersen: number;
@@ -58,17 +57,12 @@ export interface CartPanelProps {
 }
 
 /**
- * CartPanel — SATU komponen adaptif (FIX BUG-01/02).
- *
- * `useIsDesktop()` mengembalikan null sebelum mount → kita render konten
- * dalam wrapper netral dulu, lalu pilih Drawer (mobile) / Sheet kanan
- * (desktop) setelah tahu viewport. Tidak ada dua pohon PanelContent terpisah,
- * tidak ada flash/remount, tidak ada trik [&>button:first-child]:hidden.
+ * CartPanel — SATU komponen adaptif.
+ * Desktop: Sheet kanan. Mobile: Drawer bawah.
  */
 export function CartPanel(props: CartPanelProps) {
   const isDesktop = useIsDesktop();
 
-  // Sebelum tahu viewport: jangan render portal apa pun (hindari flash).
   if (isDesktop === null) return null;
 
   if (isDesktop) {
@@ -117,7 +111,6 @@ function PanelBody({
   cart,
   cartRaw,
   onUbahQty,
-  onHapus,
   presets,
   diskonPresetId,
   diskonPersen,
@@ -158,7 +151,6 @@ function PanelBody({
               key={c.menu_item_id ?? c.nama_produk}
               item={c}
               onUbahQty={onUbahQty}
-              onHapus={onHapus}
             />
           ))}
 

@@ -3,17 +3,15 @@
 import type { CartItem } from "@/lib/db/transaksi";
 import { formatRupiah } from "@/lib/utils/currency";
 import { Button } from "@/components/ui/button";
-import { Minus, Plus, Trash2, Gift } from "lucide-react";
+import { Minus, Plus, Gift } from "lucide-react";
 
-/** Baris item pilihan kasir — editable (qty +/-, hapus). */
+/** Baris item pilihan kasir — editable (qty +/-). Tanpa tombol hapus (kurangi ke 0 = hapus). */
 export function CartLine({
   item,
   onUbahQty,
-  onHapus,
 }: {
   item: CartItem;
   onUbahQty: (menuItemId: string | null, delta: number) => void;
-  onHapus: (menuItemId: string | null) => void;
 }) {
   return (
     <div className="flex items-center gap-3 py-2.5">
@@ -45,15 +43,6 @@ export function CartLine({
       <div className="w-20 text-right font-bold sm:w-24">
         {formatRupiah(item.harga_satuan * item.qty)}
       </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8 text-destructive hover:bg-destructive/10"
-        onClick={() => onHapus(item.menu_item_id)}
-        aria-label="Hapus"
-      >
-        <Trash2 className="h-4 w-4" />
-      </Button>
     </div>
   );
 }

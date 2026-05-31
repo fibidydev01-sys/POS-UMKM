@@ -5,11 +5,7 @@ import { getMenuTersedia, getKategori, type MenuItem, type Kategori } from "@/li
 import { getConfig, type UmkmConfig } from "@/lib/db/config";
 import { getDiskonPreset, type DiskonPreset } from "@/lib/db/diskon-preset";
 import { getPromoAktif, type PromoRule } from "@/lib/db/promo-rule";
-import {
-  simpanTransaksi,
-  type CartItem,
-  type HasilTransaksi,
-} from "@/lib/db/transaksi";
+import { simpanTransaksi, type CartItem, type HasilTransaksi } from "@/lib/db/transaksi";
 import { applyPromo, hitungGrandTotal } from "@/lib/cart/promo-engine";
 import { parseRupiah } from "@/lib/utils/currency";
 import { features } from "@/lib/config/features";
@@ -34,9 +30,7 @@ export function useKasirData() {
     let alive = true;
     (async () => {
       const [m, k, c, p, pr] = await Promise.all([
-        getMenuTersedia(user.umkm_id),
-        getKategori(user.umkm_id),
-        getConfig(user.umkm_id),
+        getMenuTersedia(user.umkm_id), getKategori(user.umkm_id), getConfig(user.umkm_id),
         getDiskonPreset(user.umkm_id),
         features.promoEngine ? getPromoAktif(user.umkm_id) : Promise.resolve([]),
       ]);
@@ -44,18 +38,12 @@ export function useKasirData() {
       setData({ menu: m, kategori: k, config: c, presets: p, promoRules: pr });
       setLoading(false);
     })();
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, [user, userLoading]);
 
   return { user, data, isLoading: userLoading || loading };
 }
 
-/**
- * Selector keranjang final + total. promo-engine dihitung di sini (memoized),
- * bukan di komponen page — sehingga page tetap tipis.
- */
 export function useCart(promoRules: PromoRule[]) {
   const items = useCartStore((s) => s.items);
   const diskonPersen = useCartStore((s) => s.diskonPersen);
@@ -65,11 +53,7 @@ export function useCart(promoRules: PromoRule[]) {
     [items, promoRules]
   );
 
-  const totals = React.useMemo(
-    () => hitungGrandTotal(cart, diskonPersen),
-    [cart, diskonPersen]
-  );
-
+  const totals = React.useMemo(() => hitungGrandTotal(cart, diskonPersen), [cart, diskonPersen]);
   return { cart, ...totals };
 }
 
@@ -79,21 +63,13 @@ interface BayarResult {
   error?: string;
 }
 
-/**
- * Aksi bayar — memanggil simpanTransaksi dari lib/db. Mengembalikan hasil,
- * komponen yang memutuskan tampilan toast/struk. Validasi uang & flag payment
- * V1/V2 dihormati persis seperti versi lama.
- */
 export function useBayar(cart: CartItem[], grandTotal: number) {
   const { user } = useCurrentUser();
   const [saving, setSaving] = React.useState(false);
-
   const store = useCartStore();
 
   const bayar = React.useCallback(async (): Promise<BayarResult> => {
-    if (!user || store.items.length === 0 || saving) {
-      return { ok: false };
-    }
+    if (!user || store.items.length === 0 || saving) return { ok: false };
 
     let method = store.paymentMethod;
     let uangFinal: number | null = null;
@@ -111,18 +87,14 @@ export function useBayar(cart: CartItem[], grandTotal: number) {
     setSaving(true);
     try {
       const hasil = await simpanTransaksi(
-        user.umkm_id,
-        user.id,
-        cart,
-        store.diskonPresetId,
-        store.diskonPersen,
-        method,
-        uangFinal
+        user.umkm_id, user.id, cart,
+        store.diskonPresetId, store.diskonPersen, method, uangFinal
       );
       store.reset();
       return { ok: true, struk: hasil };
-    } catch {
-      return { ok: false, error: "Gagal menyimpan transaksi. Cek koneksi internet." };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Gagal menyimpan transaksi.";
+      return { ok: false, error: msg };
     } finally {
       setSaving(false);
     }

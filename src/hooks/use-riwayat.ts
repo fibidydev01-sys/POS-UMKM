@@ -2,12 +2,8 @@
 
 import * as React from "react";
 import {
-  getRiwayat,
-  getItemsByTransaksi,
-  voidTransaksi,
-  refundTransaksi,
-  type Transaksi,
-  type TransactionItem,
+  getRiwayat, getItemsByTransaksi, voidTransaksi, refundTransaksi,
+  type Transaksi, type TransactionItem,
 } from "@/lib/db/transaksi";
 import { getConfig, type UmkmConfig } from "@/lib/db/config";
 import { useCurrentUser } from "./use-current-user";
@@ -31,42 +27,24 @@ export function useRiwayat() {
       await reload(user.umkm_id);
       if (alive) setLoading(false);
     })();
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, [user, userLoading, reload]);
 
-  const fetchItems = React.useCallback(
-    (transaksiId: string) => getItemsByTransaksi(transaksiId),
-    []
-  );
+  const fetchItems = React.useCallback((transaksiId: string) => getItemsByTransaksi(transaksiId), []);
 
-  const doVoid = React.useCallback(
-    async (id: string) => {
-      if (!user) return;
-      await voidTransaksi(id, user.id);
-      await reload(user.umkm_id);
-    },
-    [user, reload]
-  );
+  const doVoid = React.useCallback(async (id: string) => {
+    if (!user) return;
+    await voidTransaksi(id, user.id);
+    await reload(user.umkm_id);
+  }, [user, reload]);
 
-  const doRefund = React.useCallback(
-    async (id: string, alasan: string) => {
-      if (!user) return;
-      await refundTransaksi(id, user.id, alasan);
-      await reload(user.umkm_id);
-    },
-    [user, reload]
-  );
+  const doRefund = React.useCallback(async (id: string, alasan: string) => {
+    if (!user) return;
+    await refundTransaksi(id, user.id, alasan);
+    await reload(user.umkm_id);
+  }, [user, reload]);
 
-  return {
-    list,
-    config,
-    isLoading: userLoading || loading,
-    fetchItems,
-    doVoid,
-    doRefund,
-  };
+  return { list, config, isLoading: userLoading || loading, fetchItems, doVoid, doRefund };
 }
 
 export type { Transaksi, TransactionItem };

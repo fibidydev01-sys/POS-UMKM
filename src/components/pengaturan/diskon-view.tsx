@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Pencil, Tag } from "lucide-react";
+import { Plus, Pencil, Tag, ArrowLeft } from "lucide-react";
 
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
@@ -73,13 +73,13 @@ export function DiskonPresetView() {
         <div>
           <button
             onClick={() => router.back()}
-            className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground"
+            className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground"
           >
-            ← Pengaturan
+            <ArrowLeft className="h-3 w-3" /> Pengaturan
           </button>
           <h1 className="text-xl font-extrabold">Preset Diskon</h1>
           <p className="text-sm text-muted-foreground">
-            Kasir hanya bisa pilih dari preset ini. Tidak ada input bebas.
+            Kasir hanya bisa pilih dari preset ini.
           </p>
         </div>
         <Button
@@ -93,9 +93,12 @@ export function DiskonPresetView() {
         </Button>
       </header>
 
+      {/* Kosong — tampilkan hanya tombol tambah preset pertama */}
       {kosong ? (
         <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-          <Tag className="h-10 w-10 text-muted-foreground/40" />
+          <div className="grid h-16 w-16 place-items-center rounded-2xl bg-secondary">
+            <Tag className="h-8 w-8 text-muted-foreground/50" />
+          </div>
           <p className="font-semibold">Belum ada preset diskon</p>
           <p className="text-sm text-muted-foreground">
             Tambah preset agar kasir bisa pilih diskon saat transaksi.

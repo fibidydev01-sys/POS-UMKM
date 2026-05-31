@@ -16,24 +16,12 @@ export default function AlertBackup({
       <CloudDownload className="h-5 w-5" />
       <AlertTitle>Sudah backup data?</AlertTitle>
       <AlertDescription>
-        <p>
-          Amankan transaksi Anda ke Excel. Data tersimpan di server, tapi backup rutin
-          menjaga ketenangan saat berpindah perangkat.
-        </p>
+        <p>Amankan transaksi Anda ke Excel. Data tersimpan di server, tapi backup rutin menjaga ketenangan saat berpindah perangkat.</p>
         <div className="mt-3 flex items-center gap-3">
-          <Button
-            size="sm"
-            className="bg-warning text-white hover:bg-warning/90"
-            onClick={onBackup}
-          >
+          <Button size="sm" className="bg-warning text-white hover:bg-warning/90" onClick={onBackup}>
             Backup Sekarang
           </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-warning/80 hover:bg-warning/10 hover:text-warning"
-            onClick={onTutup}
-          >
+          <Button size="sm" variant="ghost" className="text-warning/80 hover:bg-warning/10 hover:text-warning" onClick={onTutup}>
             Nanti
           </Button>
         </div>

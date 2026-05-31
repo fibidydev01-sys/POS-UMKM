@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Gift, Pencil } from "lucide-react";
+import { Plus, Gift, Pencil, ArrowLeft } from "lucide-react";
 
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
@@ -94,9 +94,9 @@ export function PromoView() {
         <div>
           <button
             onClick={() => router.back()}
-            className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground"
+            className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground"
           >
-            ← Pengaturan
+            <ArrowLeft className="h-3 w-3" /> Pengaturan
           </button>
           <h1 className="text-xl font-extrabold">Program Promo</h1>
           <p className="text-sm text-muted-foreground">
@@ -116,7 +116,9 @@ export function PromoView() {
 
       {kosong ? (
         <div className="flex flex-col items-center gap-3 py-16 text-center">
-          <Gift className="h-10 w-10 text-muted-foreground/40" />
+          <div className="grid h-16 w-16 place-items-center rounded-2xl bg-secondary">
+            <Gift className="h-8 w-8 text-muted-foreground/50" />
+          </div>
           <p className="font-semibold">Belum ada promo</p>
           <p className="text-sm text-muted-foreground">
             Tambah promo BOGO untuk menarik pembeli.

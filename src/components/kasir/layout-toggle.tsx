@@ -4,10 +4,6 @@ import { LayoutGrid, List } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MenuLayout } from "./menu-card";
 
-/**
- * LayoutToggle — ganti tampilan item kasir antara List & Grid.
- * Default List (di-set parent). Tidak dipersist — reset tiap buka.
- */
 export function LayoutToggle({
   value,
   onChange,

@@ -8,14 +8,6 @@ import { cn } from "@/lib/utils";
 
 export type MenuLayout = "list" | "grid";
 
-/**
- * MenuCard — kartu produk kasir, dukung 2 layout: grid & list.
- *
- * Aturan tampilan (final):
- *  - Belum ditekan (qty 0): HANYA nama + harga.
- *  - Setelah ditekan (qty > 0): muncul Badge qty. Tap lagi = nambah.
- *  - Tanpa aspect-square → tinggi ikut konten, teks tidak terpotong (BUG-04).
- */
 export function MenuCard({
   item,
   qty,
@@ -62,7 +54,6 @@ export function MenuCard({
     );
   }
 
-  // grid
   return (
     <Card
       role="button"

@@ -10,10 +10,7 @@ import { features } from "@/lib/config/features";
 import { cn } from "@/lib/utils";
 
 import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
+  Drawer, DrawerContent, DrawerHeader, DrawerTitle,
 } from "@/components/ui/drawer";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -25,12 +22,7 @@ import { StrukPrint } from "@/components/kasir/struk-print";
 import { STATUS_LABEL, STATUS_VARIANT } from "./transaksi-row";
 
 export function TransaksiDetailDialog({
-  trx,
-  config,
-  fetchItems,
-  onClose,
-  onVoid,
-  onRefund,
+  trx, config, fetchItems, onClose, onVoid, onRefund,
 }: {
   trx: Transaksi | null;
   config: UmkmConfig | null;
@@ -52,9 +44,7 @@ export function TransaksiDetailDialog({
     setShowRefundForm(false);
     setAlasanRefund("");
     setLoadingItems(true);
-    fetchItems(trx.id)
-      .then(setItems)
-      .finally(() => setLoadingItems(false));
+    fetchItems(trx.id).then(setItems).finally(() => setLoadingItems(false));
   }, [trx, fetchItems]);
 
   async function handleVoid() {
@@ -62,7 +52,7 @@ export function TransaksiDetailDialog({
     setVoidLoading(true);
     try {
       await onVoid(trx.id);
-      toast.success(`Transaksi #${trx.nomor_order} di-void`);
+      toast.success("Transaksi #" + trx.nomor_order + " di-void");
       setVoidConfirm(false);
       onClose();
     } catch {
@@ -77,7 +67,7 @@ export function TransaksiDetailDialog({
     setRefundLoading(true);
     try {
       await onRefund(trx.id, alasanRefund.trim());
-      toast.success(`Transaksi #${trx.nomor_order} di-refund`);
+      toast.success("Transaksi #" + trx.nomor_order + " di-refund");
       onClose();
     } catch {
       toast.error("Gagal refund transaksi");
@@ -104,9 +94,7 @@ export function TransaksiDetailDialog({
           <ScrollArea className="flex-1">
             <div className="flex flex-col gap-3 px-4 py-2">
               {loadingItems ? (
-                <div className="flex justify-center py-6">
-                  <Spinner />
-                </div>
+                <div className="flex justify-center py-6"><Spinner /></div>
               ) : (
                 trx && (
                   <div className="rounded-xl border border-dashed border-border bg-secondary/30 p-2">
@@ -116,14 +104,10 @@ export function TransaksiDetailDialog({
               )}
 
               {trx?.void_reason && (
-                <p
-                  className={cn(
-                    "rounded-lg px-3 py-2 text-xs",
-                    trx.status === "refund"
-                      ? "bg-warning/10 text-warning"
-                      : "bg-destructive/10 text-destructive"
-                  )}
-                >
+                <p className={cn(
+                  "rounded-lg px-3 py-2 text-xs",
+                  trx.status === "refund" ? "bg-warning/10 text-warning" : "bg-destructive/10 text-destructive"
+                )}>
                   {trx.status === "refund" ? "Alasan refund" : "Alasan void"}: {trx.void_reason}
                 </p>
               )}
@@ -138,19 +122,13 @@ export function TransaksiDetailDialog({
                     autoFocus
                   />
                   <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => setShowRefundForm(false)}
-                    >
-                      Batal
-                    </Button>
+                    <Button variant="outline" className="flex-1" onClick={() => setShowRefundForm(false)}>Batal</Button>
                     <Button
                       className="flex-1 bg-warning text-white hover:bg-warning/90"
                       disabled={!alasanRefund.trim() || refundLoading}
                       onClick={handleRefund}
                     >
-                      {refundLoading ? "Memproses…" : "Konfirmasi Refund"}
+                      {refundLoading ? "Memproses..." : "Konfirmasi Refund"}
                     </Button>
                   </div>
                 </div>
@@ -158,19 +136,11 @@ export function TransaksiDetailDialog({
 
               {!showRefundForm && isCompleted && (
                 <div className="flex gap-2 print:hidden">
-                  <Button
-                    variant="ghost"
-                    className="text-destructive hover:bg-destructive/10"
-                    onClick={() => setVoidConfirm(true)}
-                  >
+                  <Button variant="ghost" className="text-destructive hover:bg-destructive/10" onClick={() => setVoidConfirm(true)}>
                     <XCircle className="h-4 w-4" /> Void
                   </Button>
                   {features.refund && (
-                    <Button
-                      variant="ghost"
-                      className="text-warning hover:bg-warning/10"
-                      onClick={() => setShowRefundForm(true)}
-                    >
+                    <Button variant="ghost" className="text-warning hover:bg-warning/10" onClick={() => setShowRefundForm(true)}>
                       <RotateCcw className="h-4 w-4" /> Refund
                     </Button>
                   )}
@@ -193,7 +163,7 @@ export function TransaksiDetailDialog({
       <ConfirmDialog
         open={voidConfirm}
         onOpenChange={(o) => !o && setVoidConfirm(false)}
-        title={trx ? `Void transaksi #${trx.nomor_order}?` : ""}
+        title={trx ? "Void transaksi #" + trx.nomor_order + "?" : ""}
         description="Tindakan ini tidak bisa dibatalkan."
         confirmLabel="Void"
         destructive

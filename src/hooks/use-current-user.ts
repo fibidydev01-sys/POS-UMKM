@@ -12,24 +12,10 @@ interface UseCurrentUserResult {
   isLoading: boolean;
 }
 
-/**
- * Satu-satunya sumber identitas untuk semua halaman.
- *
- * Menggabungkan dua jalur lama:
- *  - getCurrentUser() — query DB (dipakai dashboard/kasir/riwayat)
- *  - getUmkmId()/getOwnerId() — baca cookie sync (dipakai menu/pengaturan)
- *
- * Jika `requireUser` true (default), validasi penuh ke DB dan redirect ke
- * /aktivasi bila tidak ada. Jika false, cukup pakai cookie (lebih cepat,
- * tanpa round-trip) — cocok untuk halaman owner-only seperti pengaturan.
- */
 export function useCurrentUser(requireUser = true): UseCurrentUserResult {
   const router = useRouter();
   const [user, setUser] = React.useState<CurrentUser | null>(null);
-  const [ids, setIds] = React.useState<{ umkmId: string | null; ownerId: string | null }>({
-    umkmId: null,
-    ownerId: null,
-  });
+  const [ids, setIds] = React.useState<{ umkmId: string | null; ownerId: string | null }>({ umkmId: null, ownerId: null });
   const [isLoading, setIsLoading] = React.useState(true);
 
   React.useEffect(() => {
@@ -39,10 +25,7 @@ export function useCurrentUser(requireUser = true): UseCurrentUserResult {
       const cookieOwner = getOwnerId();
 
       if (!requireUser) {
-        if (!cookieUmkm) {
-          router.replace("/aktivasi");
-          return;
-        }
+        if (!cookieUmkm) { router.replace("/aktivasi"); return; }
         if (!alive) return;
         setIds({ umkmId: cookieUmkm, ownerId: cookieOwner });
         setIsLoading(false);
@@ -51,17 +34,12 @@ export function useCurrentUser(requireUser = true): UseCurrentUserResult {
 
       const u = await getCurrentUser();
       if (!alive) return;
-      if (!u) {
-        router.replace("/aktivasi");
-        return;
-      }
+      if (!u) { router.replace("/aktivasi"); return; }
       setUser(u);
       setIds({ umkmId: u.umkm_id, ownerId: u.id });
       setIsLoading(false);
     })();
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, [router, requireUser]);
 
   return { user, umkmId: ids.umkmId, ownerId: ids.ownerId, isLoading };

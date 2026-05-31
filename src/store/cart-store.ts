@@ -12,14 +12,12 @@ interface TambahArg {
 }
 
 interface CartState {
-  /** Item mentah pilihan kasir (sebelum promo engine diterapkan). */
   items: CartItem[];
   diskonPresetId: string | null;
   diskonPersen: number;
   paymentMethod: PaymentMethod;
   uangDiterima: string;
 
-  // actions
   tambah: (item: TambahArg) => void;
   ubahQty: (menuItemId: string | null, delta: number) => void;
   hapus: (menuItemId: string | null) => void;
@@ -27,8 +25,6 @@ interface CartState {
   setPaymentMethod: (method: PaymentMethod) => void;
   setUangDiterima: (v: string) => void;
   reset: () => void;
-
-  // derived
   totalQty: () => number;
 }
 
@@ -52,17 +48,7 @@ export const useCartStore = create<CartState>((set, get) => ({
         return { items };
       }
       return {
-        items: [
-          ...state.items,
-          {
-            menu_item_id: id,
-            nama_produk: nama,
-            harga_satuan: harga,
-            qty: 1,
-            diskon_preset_id: null,
-            diskon_persen: 0,
-          },
-        ],
+        items: [...state.items, { menu_item_id: id, nama_produk: nama, harga_satuan: harga, qty: 1, diskon_preset_id: null, diskon_persen: 0 }],
       };
     }),
 
@@ -79,15 +65,9 @@ export const useCartStore = create<CartState>((set, get) => ({
   setDiskon: (presetId, persen) => set({ diskonPresetId: presetId, diskonPersen: persen }),
 
   setPaymentMethod: (method) =>
-    set((state) => ({
-      paymentMethod: method,
-      // reset uang diterima saat ganti ke non-tunai
-      uangDiterima: method === "cash" ? state.uangDiterima : "",
-    })),
+    set((state) => ({ paymentMethod: method, uangDiterima: method === "cash" ? state.uangDiterima : "" })),
 
   setUangDiterima: (v) => set({ uangDiterima: v }),
-
   reset: () => set({ ...initial }),
-
   totalQty: () => get().items.reduce((s, c) => s + c.qty, 0),
 }));

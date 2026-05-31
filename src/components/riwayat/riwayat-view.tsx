@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/empty";
 import { TransaksiRow } from "./transaksi-row";
 import { TransaksiDetailDialog } from "./transaksi-detail";
+import { ReceiptText } from "lucide-react";
 
 export function RiwayatView() {
   const { list, config, isLoading, fetchItems, doVoid, doRefund } = useRiwayat();
@@ -35,7 +36,9 @@ export function RiwayatView() {
 
       {list.length === 0 ? (
         <Empty>
-          <EmptyMedia>🧾</EmptyMedia>
+          <EmptyMedia>
+            <ReceiptText className="h-10 w-10 text-muted-foreground/40" />
+          </EmptyMedia>
           <EmptyTitle>Belum ada transaksi</EmptyTitle>
           <EmptyDescription>Transaksi yang dibuat akan muncul di sini.</EmptyDescription>
         </Empty>

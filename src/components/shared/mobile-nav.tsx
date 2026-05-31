@@ -5,10 +5,6 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { NAV, isPathActive } from "./nav-config";
 
-/**
- * MobileNav — bottom navigation untuk mobile portrait (< md).
- * Tinggi tetap; konten utama memberi padding-bottom lewat AppShell.
- */
 export function MobileNav() {
   const pathname = usePathname();
 

@@ -1,16 +1,30 @@
 -- ============================================================
 -- POS UMKM — Schema Final (Owner-Only + BOGO)
--- Versi  : (V1 + V2) — VERIFIED FINAL
+-- Versi  : V1 + V2 — FINAL
 -- Target : Supabase (PostgreSQL)
--- Scope  : Single UMKM, Single Owner, No Auth, BOGO aktif
--- ============================================================
 -- ============================================================
 -- CARA RUN:
---   1. Jalankan CLEAN SLATE SQL terlebih dahulu (bila schema lama ada)
---   2. Buka Supabase Dashboard → SQL Editor
---   3. Paste seluruh file ini → Klik Run
---   4. Aman dirun ulang — semua pakai IF NOT EXISTS / OR REPLACE
+--   1. Drop semua tabel lama terlebih dahulu (lihat CLEAN SLATE di bawah)
+--   2. Supabase Dashboard → SQL Editor → paste → Run
 -- ============================================================
+
+-- ============================================================
+-- OPTIONAL CLEAN SLATE (jalankan dulu jika schema lama ada)
+-- ============================================================
+-- DROP TABLE IF EXISTS transaction_items CASCADE;
+-- DROP TABLE IF EXISTS transaksi CASCADE;
+-- DROP TABLE IF EXISTS promo_rule CASCADE;
+-- DROP TABLE IF EXISTS diskon_preset CASCADE;
+-- DROP TABLE IF EXISTS menu_item CASCADE;
+-- DROP TABLE IF EXISTS kategori CASCADE;
+-- DROP TABLE IF EXISTS umkm_config CASCADE;
+-- DROP TABLE IF EXISTS users CASCADE;
+-- DROP TABLE IF EXISTS aktivasi_kode CASCADE;
+-- DROP TYPE IF EXISTS item_type_enum CASCADE;
+-- DROP TYPE IF EXISTS transaksi_status_enum CASCADE;
+-- DROP TYPE IF EXISTS tipe_promo_enum CASCADE;
+-- DROP TYPE IF EXISTS payment_method_enum CASCADE;
+-- DROP TYPE IF EXISTS role_enum CASCADE;
 
 -- ============================================================
 -- STEP 0: ENUM TYPES
@@ -36,29 +50,23 @@ DO $$ BEGIN
     CREATE TYPE role_enum             AS ENUM ('owner', 'kasir', 'system');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-
 -- ============================================================
 -- STEP 1: AKTIVASI KODE
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS aktivasi_kode (
     id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    kode           TEXT UNIQUE NOT NULL,
+    kode           TEXT UNIQUE NOT NULL CHECK (kode <> ''),
     used           BOOLEAN NOT NULL DEFAULT FALSE,
     umkm_id        UUID DEFAULT NULL,
     version_access TEXT NOT NULL DEFAULT 'v1',
     created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
-    activated_at   TIMESTAMPTZ DEFAULT NULL,
-
-    CHECK (kode <> '')
+    activated_at   TIMESTAMPTZ DEFAULT NULL
 );
-
 
 -- ============================================================
 -- STEP 2: UMKM CONFIG
--- Field: nama_umkm, alamat, no_telp, footer_struk, app_version
--- NOTE: paper_width TIDAK ada di Supabase — disimpan di localStorage browser
---       (Next.js) atau di tabel pengaturan SQLite (React Native).
+-- NOTE: paper_width TIDAK ada di Supabase — disimpan di localStorage browser.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS umkm_config (
@@ -73,26 +81,21 @@ CREATE TABLE IF NOT EXISTS umkm_config (
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-
 -- ============================================================
 -- STEP 3: USERS
--- Owner-only. Satu row per UMKM, role = 'owner'.
--- Di-seed saat aktivasi. UUID disimpan di cookie owner_id.
+-- Owner-only. Satu row per UMKM. UUID disimpan di cookie owner_id.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS users (
     id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     umkm_id    UUID NOT NULL,
-    username   TEXT NOT NULL,
+    username   TEXT NOT NULL CHECK (username <> ''),
     role       role_enum NOT NULL DEFAULT 'owner',
     is_active  BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-    UNIQUE (umkm_id, username),
-    CHECK (username <> '')
+    UNIQUE (umkm_id, username)
 );
-
 
 -- ============================================================
 -- STEP 4: KATEGORI
@@ -101,72 +104,49 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS kategori (
     id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     umkm_id    UUID NOT NULL,
-    nama       TEXT NOT NULL,
+    nama       TEXT NOT NULL CHECK (nama <> ''),
     urutan     INTEGER NOT NULL DEFAULT 0,
     is_active  BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-    CHECK (nama <> '')
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-
 
 -- ============================================================
 -- STEP 5: MENU ITEM
--- TIDAK PERNAH hard delete — gunakan is_active = FALSE.
--- is_active    = masih dijual (owner control, permanen)
--- is_available = stok ada hari ini (owner toggle harian)
+-- TIDAK PERNAH hard delete — is_active = FALSE untuk soft delete.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS menu_item (
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     umkm_id      UUID NOT NULL,
     kategori_id  UUID REFERENCES kategori(id) ON DELETE SET NULL,
-    nama         TEXT NOT NULL,
-    harga        NUMERIC(12,2) NOT NULL,
+    nama         TEXT NOT NULL CHECK (nama <> ''),
+    harga        NUMERIC(12,2) NOT NULL CHECK (harga >= 0),
     is_active    BOOLEAN NOT NULL DEFAULT TRUE,
     is_available BOOLEAN NOT NULL DEFAULT TRUE,
     urutan       INTEGER NOT NULL DEFAULT 0,
     updated_by   UUID NOT NULL REFERENCES users(id),
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-    CHECK (harga >= 0),
-    CHECK (nama <> '')
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-
 
 -- ============================================================
 -- STEP 6: DISKON PRESET
--- Owner buat preset. Di kasir hanya bisa pilih dari sini.
--- Tidak ada input nominal bebas.
--- Di-seed 4 default (5%, 10%, 15%, 20%) saat aktivasi.
--- NUMERIC(5,2) support 12.5%.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS diskon_preset (
     id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     umkm_id    UUID NOT NULL,
-    nama       TEXT NOT NULL,
-    persen     NUMERIC(5,2) NOT NULL,
+    nama       TEXT NOT NULL CHECK (nama <> ''),
+    persen     NUMERIC(5,2) NOT NULL CHECK (persen > 0 AND persen < 100),
     is_active  BOOLEAN NOT NULL DEFAULT TRUE,
     updated_by UUID NOT NULL REFERENCES users(id),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-    CHECK (persen > 0 AND persen < 100),
-    CHECK (nama <> '')
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-
 
 -- ============================================================
 -- STEP 7: PROMO RULE
--- AKTIF di schema ini.
--- qty_beli dan qty_gratis otomatis dari tipe_promo:
---   bogo     → qty_beli=1, qty_gratis=1
---   buy2get1 → qty_beli=2, qty_gratis=1
---
--- FIX-01: CHECK (qty_gratis <= qty_beli) — sebelumnya < yang memblok BOGO.
--- BOGO: qty_beli=1, qty_gratis=1 → 1 <= 1 = TRUE ✓
+-- FIX: CHECK (qty_gratis <= qty_beli) — bukan < agar BOGO (1,1) valid.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS promo_rule (
@@ -174,8 +154,8 @@ CREATE TABLE IF NOT EXISTS promo_rule (
     umkm_id        UUID NOT NULL,
     menu_item_id   UUID NOT NULL REFERENCES menu_item(id),
     tipe_promo     tipe_promo_enum NOT NULL,
-    qty_beli       INTEGER NOT NULL,
-    qty_gratis     INTEGER NOT NULL,
+    qty_beli       INTEGER NOT NULL CHECK (qty_beli > 0),
+    qty_gratis     INTEGER NOT NULL CHECK (qty_gratis > 0),
     is_active      BOOLEAN NOT NULL DEFAULT TRUE,
     berlaku_mulai  TIMESTAMPTZ NOT NULL DEFAULT now(),
     berlaku_sampai TIMESTAMPTZ DEFAULT NULL,
@@ -183,45 +163,44 @@ CREATE TABLE IF NOT EXISTS promo_rule (
     created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-    CHECK (qty_beli > 0),
-    CHECK (qty_gratis > 0),
-    CHECK (qty_gratis <= qty_beli),  -- FIX-01: was < (blocked BOGO where beli=1 gratis=1)
+    CHECK (qty_gratis <= qty_beli),
     CHECK (berlaku_sampai IS NULL OR berlaku_sampai > berlaku_mulai),
-
     UNIQUE (umkm_id, menu_item_id, tipe_promo)
 );
 
-
 -- ============================================================
 -- STEP 8: TRANSAKSI (header)
--- grand_total dihitung server, di-enforce trigger.
--- payment_method: 'cash' (bukan 'tunai' — ini Supabase/Next.js side)
+-- PERHATIAN: TIDAK ADA kolom diskon_persen di sini.
+-- Informasi diskon tersimpan di transaction_items (per item).
+--
+-- Schema check untuk cash: uang_diterima wajib >= grand_total,
+-- kembalian wajib = uang_diterima - grand_total.
+-- Untuk V1 (tanpa fitur payment), app otomatis set
+-- uang_diterima = grand_total dan kembalian = 0.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS transaksi (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     umkm_id          UUID NOT NULL,
-    nomor_order      TEXT NOT NULL,
+    nomor_order      TEXT NOT NULL CHECK (nomor_order <> ''),
     status           transaksi_status_enum NOT NULL DEFAULT 'completed',
     diskon_preset_id UUID REFERENCES diskon_preset(id),
     payment_method   payment_method_enum NOT NULL,
-    grand_total      NUMERIC(12,2) NOT NULL,
+    grand_total      NUMERIC(12,2) NOT NULL CHECK (grand_total >= 0),
 
+    -- Cash: wajib isi uang_diterima dan kembalian
     uang_diterima    NUMERIC(12,2),
     kembalian        NUMERIC(12,2),
 
     kasir_id         UUID NOT NULL REFERENCES users(id),
-
     void_by          UUID REFERENCES users(id),
     void_at          TIMESTAMPTZ,
     void_reason      TEXT,
-
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     UNIQUE (umkm_id, nomor_order),
-    CHECK (grand_total >= 0),
-    CHECK (nomor_order <> ''),
 
+    -- Cash check: uang_diterima dan kembalian wajib ada dan konsisten
     CHECK (
         payment_method <> 'cash'
         OR (
@@ -232,11 +211,13 @@ CREATE TABLE IF NOT EXISTS transaksi (
         )
     ),
 
+    -- Non-cash: uang_diterima dan kembalian harus NULL
     CHECK (
         payment_method = 'cash'
         OR (uang_diterima IS NULL AND kembalian IS NULL)
     ),
 
+    -- Status + void fields harus konsisten
     CHECK (
         (status = 'completed' AND void_by IS NULL AND void_at IS NULL)
         OR
@@ -244,15 +225,10 @@ CREATE TABLE IF NOT EXISTS transaksi (
     )
 );
 
-
 -- ============================================================
 -- STEP 9: TRANSACTION ITEMS
 -- SNAPSHOT PERMANEN — immutable setelah INSERT.
---
--- FIX-02: discounted item tidak wajib preset_id.
--- Sebelumnya: AND diskon_preset_id IS NOT NULL → memblok V1 ENV mode
--- yang pakai hardcoded presets (preset_id = null di DB).
--- Sekarang: cukup diskon_persen > 0.
+-- FIX: discounted item tidak wajib preset_id (V1 ENV mode ok).
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS transaction_items (
@@ -261,23 +237,16 @@ CREATE TABLE IF NOT EXISTS transaction_items (
     menu_item_id         UUID REFERENCES menu_item(id),
     umkm_id              UUID NOT NULL,
 
-    nama_produk          TEXT NOT NULL,
-    harga_satuan         NUMERIC(12,2) NOT NULL,
-    qty                  INTEGER NOT NULL,
+    nama_produk          TEXT NOT NULL CHECK (nama_produk <> ''),
+    harga_satuan         NUMERIC(12,2) NOT NULL CHECK (harga_satuan >= 0),
+    qty                  INTEGER NOT NULL CHECK (qty > 0),
     item_type            item_type_enum NOT NULL,
 
-    diskon_persen        NUMERIC(5,2) NOT NULL DEFAULT 0,
+    diskon_persen        NUMERIC(5,2) NOT NULL DEFAULT 0
+                         CHECK (diskon_persen >= 0 AND diskon_persen < 100),
     diskon_preset_id     UUID REFERENCES diskon_preset(id),
-
     triggered_by_item_id UUID REFERENCES transaction_items(id),
-
-    final_price_item     NUMERIC(12,2) NOT NULL,
-
-    CHECK (harga_satuan >= 0),
-    CHECK (qty > 0),
-    CHECK (final_price_item >= 0),
-    CHECK (diskon_persen >= 0 AND diskon_persen < 100),
-    CHECK (nama_produk <> ''),
+    final_price_item     NUMERIC(12,2) NOT NULL CHECK (final_price_item >= 0),
 
     -- normal: tidak boleh ada diskon atau triggered_by
     CHECK (
@@ -289,7 +258,7 @@ CREATE TABLE IF NOT EXISTS transaction_items (
         )
     ),
 
-    -- promo_free: harga 0, diskon 0, triggered_by wajib ada
+    -- promo_free: harga 0, diskon 0, triggered_by wajib
     CHECK (
         item_type <> 'promo_free'
         OR (
@@ -299,16 +268,15 @@ CREATE TABLE IF NOT EXISTS transaction_items (
         )
     ),
 
-    -- FIX-02: discounted: diskon wajib, preset OPSIONAL (NULL ok untuk V1 ENV mode)
+    -- discounted: diskon wajib > 0; preset_id OPSIONAL (V1 ENV mode ok)
     CHECK (
         item_type <> 'discounted'
         OR diskon_persen > 0
     )
 );
 
-
 -- ============================================================
--- STEP 10: TRIGGER 1 — grand_total == SUM(final_price_item)
+-- STEP 10: TRIGGER — grand_total == SUM(final_price_item)
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION check_grand_total()
@@ -322,17 +290,13 @@ BEGIN
     FROM transaction_items
     WHERE transaksi_id = NEW.transaksi_id;
 
-    SELECT grand_total
-    INTO expected_total
-    FROM transaksi
-    WHERE id = NEW.transaksi_id;
+    SELECT grand_total INTO expected_total
+    FROM transaksi WHERE id = NEW.transaksi_id;
 
     IF calculated_total <> expected_total THEN
         RAISE EXCEPTION
             'grand_total tidak cocok untuk transaksi %: expected %, calculated %',
-            NEW.transaksi_id,
-            expected_total,
-            calculated_total;
+            NEW.transaksi_id, expected_total, calculated_total;
     END IF;
 
     RETURN NEW;
@@ -346,9 +310,8 @@ CREATE CONSTRAINT TRIGGER trg_validate_grand_total
     FOR EACH ROW
     EXECUTE FUNCTION check_grand_total();
 
-
 -- ============================================================
--- STEP 11: TRIGGER 2 — triggered_by_item_id dalam transaksi yang sama
+-- STEP 11: TRIGGER — triggered_by_item_id dalam transaksi sama
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION check_triggered_by_same_transaction()
@@ -356,27 +319,17 @@ RETURNS TRIGGER AS $$
 DECLARE
     source_transaksi_id UUID;
 BEGIN
-    IF NEW.triggered_by_item_id IS NULL THEN
-        RETURN NEW;
-    END IF;
+    IF NEW.triggered_by_item_id IS NULL THEN RETURN NEW; END IF;
 
-    SELECT transaksi_id
-    INTO source_transaksi_id
-    FROM transaction_items
-    WHERE id = NEW.triggered_by_item_id;
+    SELECT transaksi_id INTO source_transaksi_id
+    FROM transaction_items WHERE id = NEW.triggered_by_item_id;
 
     IF source_transaksi_id IS NULL THEN
-        RAISE EXCEPTION
-            'triggered_by_item_id % tidak ditemukan di transaction_items',
-            NEW.triggered_by_item_id;
+        RAISE EXCEPTION 'triggered_by_item_id % tidak ditemukan', NEW.triggered_by_item_id;
     END IF;
 
     IF source_transaksi_id <> NEW.transaksi_id THEN
-        RAISE EXCEPTION
-            'triggered_by_item_id harus dalam transaksi yang sama. Item % ada di transaksi %, bukan %',
-            NEW.triggered_by_item_id,
-            source_transaksi_id,
-            NEW.transaksi_id;
+        RAISE EXCEPTION 'triggered_by_item_id harus dalam transaksi yang sama';
     END IF;
 
     RETURN NEW;
@@ -389,9 +342,8 @@ CREATE TRIGGER trg_validate_triggered_by_same_transaction
     FOR EACH ROW
     EXECUTE FUNCTION check_triggered_by_same_transaction();
 
-
 -- ============================================================
--- STEP 12: HELPER FUNCTION — nomor_order generator
+-- STEP 12: NOMOR ORDER GENERATOR
 -- Format: YYYYMMDD-XXXX (zona Jakarta). Reset harian.
 -- ============================================================
 
@@ -405,13 +357,10 @@ DECLARE
 BEGIN
     today_prefix := TO_CHAR(NOW() AT TIME ZONE 'Asia/Jakarta', 'YYYYMMDD');
 
-    SELECT nomor_order
-    INTO last_order
+    SELECT nomor_order INTO last_order
     FROM transaksi
-    WHERE umkm_id = p_umkm_id
-      AND nomor_order LIKE today_prefix || '-%'
-    ORDER BY nomor_order DESC
-    LIMIT 1;
+    WHERE umkm_id = p_umkm_id AND nomor_order LIKE today_prefix || '-%'
+    ORDER BY nomor_order DESC LIMIT 1;
 
     IF last_order IS NULL THEN
         next_num := 1;
@@ -424,52 +373,38 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-
 -- ============================================================
 -- STEP 13: INDEXES
 -- ============================================================
 
 CREATE INDEX IF NOT EXISTS idx_transaksi_umkm_status_created
     ON transaksi (umkm_id, status, created_at DESC);
-
 CREATE INDEX IF NOT EXISTS idx_transaksi_kasir
     ON transaksi (kasir_id);
-
 CREATE INDEX IF NOT EXISTS idx_transaksi_nomor_order
     ON transaksi (umkm_id, nomor_order);
-
 CREATE INDEX IF NOT EXISTS idx_transaction_items_transaksi
     ON transaction_items (transaksi_id);
-
 CREATE INDEX IF NOT EXISTS idx_transaction_items_menu
     ON transaction_items (menu_item_id);
-
 CREATE INDEX IF NOT EXISTS idx_transaction_items_item_type
     ON transaction_items (umkm_id, item_type);
-
 CREATE INDEX IF NOT EXISTS idx_menu_item_umkm_active
     ON menu_item (umkm_id, is_active, is_available);
-
 CREATE INDEX IF NOT EXISTS idx_kategori_umkm
     ON kategori (umkm_id, is_active);
-
 CREATE INDEX IF NOT EXISTS idx_diskon_preset_umkm_active
     ON diskon_preset (umkm_id, is_active);
-
 CREATE INDEX IF NOT EXISTS idx_promo_rule_menu_active
     ON promo_rule (menu_item_id, is_active, berlaku_mulai, berlaku_sampai);
-
 CREATE INDEX IF NOT EXISTS idx_promo_rule_umkm
     ON promo_rule (umkm_id, is_active);
-
 CREATE INDEX IF NOT EXISTS idx_users_umkm_active
     ON users (umkm_id, is_active);
 
-
 -- ============================================================
--- STEP 14: SEED — kode aktivasi untuk testing
--- Diskon preset default TIDAK di-seed di sini.
--- Di-seed via /api/aktivasi/route.ts saat aktivasi kode.
+-- STEP 14: SEED — kode aktivasi
+-- Diskon preset default di-seed via /api/aktivasi saat aktivasi.
 -- ============================================================
 
 INSERT INTO aktivasi_kode (kode, version_access) VALUES
@@ -482,50 +417,7 @@ INSERT INTO aktivasi_kode (kode, version_access) VALUES
     ('UMKM-V2-TEST',  'v2')
 ON CONFLICT (kode) DO NOTHING;
 
-
 -- ============================================================
--- STEP 15: RLS — DISABLED (default PostgreSQL)
--- Tidak ada Supabase Auth. Isolasi via .eq('umkm_id', ...).
+-- RLS — DISABLED (default PostgreSQL)
+-- Isolasi tenant via .eq('umkm_id', ...) di setiap query.
 -- ============================================================
--- Default PostgreSQL: RLS = OFF. Tidak perlu eksplisit disable.
-
-
--- ============================================================
--- VERIFIKASI SETELAH RUN
--- ============================================================
-
--- 1. Tabel (harus 9 baris):
--- SELECT table_name FROM information_schema.tables
--- WHERE table_schema = 'public'
---   AND table_name IN (
---     'aktivasi_kode','umkm_config','users','kategori',
---     'menu_item','diskon_preset','promo_rule',
---     'transaksi','transaction_items'
---   )
--- ORDER BY table_name;
-
--- 2. Triggers (harus 2):
--- SELECT trigger_name, event_object_table
--- FROM information_schema.triggers
--- WHERE trigger_schema = 'public'
--- ORDER BY trigger_name;
-
--- 3. Functions (harus 3):
--- SELECT routine_name FROM information_schema.routines
--- WHERE routine_schema = 'public'
--- ORDER BY routine_name;
-
--- 4. RLS harus OFF semua:
--- SELECT tablename, rowsecurity FROM pg_tables
--- WHERE schemaname = 'public'
--- ORDER BY tablename;
-
--- 5. Check FIX-01 (harus <= bukan <):
--- SELECT pg_get_constraintdef(oid) FROM pg_constraint
--- WHERE conrelid = 'promo_rule'::regclass AND contype = 'c'
---   AND pg_get_constraintdef(oid) LIKE '%qty_gratis%';
-
--- 6. Check FIX-02 (tidak boleh ada diskon_preset_id IS NOT NULL):
--- SELECT pg_get_constraintdef(oid) FROM pg_constraint
--- WHERE conrelid = 'transaction_items'::regclass AND contype = 'c'
---   AND pg_get_constraintdef(oid) LIKE '%discounted%';

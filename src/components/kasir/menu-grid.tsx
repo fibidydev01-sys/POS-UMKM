@@ -3,13 +3,6 @@
 import type { MenuItem } from "@/lib/db/menu";
 import { MenuCard, type MenuLayout } from "./menu-card";
 
-/**
- * MenuGrid — render daftar produk sesuai layout.
- *
- *  - list: satu kolom, baris ringkas (default kasir).
- *  - grid: 2 kolom (mobile) → 3 (sm) → 4 (lg). Breakpoint sistem, bukan
- *    pixel arbitrer (BUG-04).
- */
 export function MenuGrid({
   items,
   qtyMap,

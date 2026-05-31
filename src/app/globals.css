@@ -1,43 +1,27 @@
 @import "tailwindcss";
 
-/* ============================================================
-   POS UMKM — Tema "Warung Modern"
-   Terracotta hangat + teal di atas krem. Membumi, bukan korporat.
-   (Token TIDAK berubah dari versi sebelumnya — hanya tambah popover.)
-   ============================================================ */
-
 :root {
   --background: #faf7f2;
   --foreground: #1c1917;
-
   --card: #ffffff;
   --card-foreground: #1c1917;
-
   --popover: #ffffff;
   --popover-foreground: #1c1917;
-
   --primary: #c2410c;
   --primary-foreground: #ffffff;
-
   --secondary: #f3eee6;
   --secondary-foreground: #1c1917;
-
   --muted: #f3eee6;
   --muted-foreground: #78716c;
-
   --accent: #0f766e;
   --accent-foreground: #ffffff;
-
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-
   --success: #15803d;
   --warning: #b45309;
-
   --border: #e7e0d5;
   --input: #e7e0d5;
   --ring: #c2410c;
-
   --radius: 0.75rem;
 }
 
@@ -63,55 +47,21 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-
   --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
 }
 
-* {
-  border-color: var(--border);
-}
-
-body {
-  background-color: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
-}
-
-/* subtle scrollbar */
+* { border-color: var(--border); }
+body { background-color: var(--background); color: var(--foreground); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
 
-/* ============================================================
-   LAYOUT NAV
-   Sidebar (desktop) & bottom-nav (mobile) kini ditangani oleh
-   komponen shadcn Sidebar + MobileNav. Lebar sidebar memakai CSS var
-   internal komponen, dan offset konten otomatis via flex (SidebarInset).
-   Tidak ada lagi magic-number left-[72px]/ml-[200px]/bottom-[58px].
-   Tombol keranjang kasir kini sticky di dalam konten.
-   ============================================================ */
-
-/* ============================================================
-   CETAK STRUK — hanya area #area-struk yang tampil saat print
-   (TIDAK BERUBAH — kritikal untuk printer thermal 58/80mm)
-   ============================================================ */
 @media print {
   body * { visibility: hidden !important; }
   #area-struk, #area-struk * { visibility: visible !important; }
-  #area-struk {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 58mm;
-    padding: 0;
-    margin: 0;
-    color: #000;
-    background: #fff;
-  }
+  #area-struk { position: absolute; left: 0; top: 0; width: 58mm; padding: 0; margin: 0; color: #000; background: #fff; }
   @page { margin: 4mm; size: 58mm auto; }
 }

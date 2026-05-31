@@ -7,18 +7,14 @@ import { parseRupiah, formatAngka, formatRupiah } from "@/lib/utils/currency";
 import type { PaymentMethod } from "@/store/cart-store";
 
 const PAYMENT_LABELS: Record<PaymentMethod, string> = {
-  cash: "💵 Tunai",
-  qris: "📱 QRIS",
-  transfer: "🏦 Transfer",
-  debit: "💳 Debit",
+  cash: "Tunai",
+  qris: "QRIS",
+  transfer: "Transfer",
+  debit: "Debit",
 };
 
 const METHODS: PaymentMethod[] = ["cash", "qris", "transfer", "debit"];
 
-/**
- * PaymentMethodPicker — metode bayar + input uang/kembalian (khusus V2).
- * Parent (kasir-view) hanya merender ini saat features.payment aktif.
- */
 export function PaymentMethodPicker({
   method,
   onMethodChange,
@@ -87,7 +83,7 @@ export function PaymentMethodPicker({
           <p className="text-xs text-muted-foreground">
             {method === "qris"
               ? "Tunjukkan QR ke pelanggan. Konfirmasi setelah pembayaran berhasil."
-              : `Konfirmasi setelah dana ${PAYMENT_LABELS[method].replace(/^\S+\s/, "")} masuk / disetujui.`}
+              : `Konfirmasi setelah dana ${PAYMENT_LABELS[method]} masuk / disetujui.`}
           </p>
         </div>
       )}

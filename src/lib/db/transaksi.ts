@@ -11,6 +11,7 @@ export interface Transaksi {
   nomor_order: string;
   status: "completed" | "void" | "refund";
   diskon_preset_id: string | null;
+  // diskon_persen TIDAK ADA di kolom transaksi — hanya ada di transaction_items
   payment_method: "cash" | "qris" | "transfer" | "debit";
   grand_total: number;
   uang_diterima: number | null;
@@ -100,15 +101,15 @@ export async function generateNomorOrder(umkmId: string): Promise<string> {
 // ── Simpan transaksi ──────────────────────────────────────────
 
 /**
- * Mendukung item_type = 'promo_free' dan triggered_by_item_id (V2 mode).
- * Juga mendukung diskon tanpa preset_id (V1 ENV mode).
+ * Simpan transaksi ke Supabase.
  *
- * FIX: hasDiskon tidak lagi bergantung pada diskonHeaderPresetId !== null.
- * Ini memungkinkan V1 mode (hardcoded preset, preset_id = null) tetap
- * menerapkan diskon dengan benar.
- *
- * INSERT SEQUENTIAL untuk promo_free karena triggered_by_item_id
- * butuh UUID dari baris yang di-INSERT sebelumnya.
+ * CATATAN SCHEMA:
+ * - Kolom diskon_persen TIDAK ADA di tabel transaksi (hanya di transaction_items).
+ * - Untuk cash (V1 tanpa fitur payment): uang_diterima = grand_total, kembalian = 0.
+ *   Schema check mensyaratkan cash WAJIB punya uang_diterima >= grand_total.
+ * - menu_item_id di transaction_items adalah NULLABLE FK.
+ *   Kita validasi dulu ke DB — UUID yang tidak ditemukan di-set null (snapshot nama tetap ada).
+ * - Mendukung item_type = 'promo_free' dan triggered_by_item_id (V2 mode).
  */
 export async function simpanTransaksi(
   umkmId: string,
@@ -120,12 +121,33 @@ export async function simpanTransaksi(
   uangDiterima: number | null
 ): Promise<HasilTransaksi> {
 
+  // Validasi menu_item_id — FK nullable, tapi kita harus pastikan UUID yang dikirim
+  // benar-benar ada di tabel menu_item. UUID stale (item dihapus/tidak ditemukan)
+  // di-set null agar tidak melanggar FK constraint.
+  const allMenuIds = [...new Set(
+    cart.map((c) => c.menu_item_id).filter((id): id is string => id !== null)
+  )];
+
+  const validMenuIds = new Set<string>();
+  if (allMenuIds.length > 0) {
+    const { data: validRows } = await supabase
+      .from("menu_item")
+      .select("id")
+      .in("id", allMenuIds);
+    for (const row of (validRows ?? [])) validMenuIds.add(row.id);
+  }
+
   // Hitung final_price per item
   const itemsHitung = cart.map((c) => {
+    // Sanitasi menu_item_id — null jika UUID tidak ditemukan di DB
+    const safeMenuItemId = c.menu_item_id && validMenuIds.has(c.menu_item_id)
+      ? c.menu_item_id
+      : null;
     // Item promo_free: harga selalu 0, tidak kena diskon header
     if (c.item_type === "promo_free") {
       return {
         ...c,
+        menu_item_id: safeMenuItemId,
         item_type: "promo_free" as const,
         diskon_persen: 0,
         diskon_preset_id: null,
@@ -133,7 +155,6 @@ export async function simpanTransaksi(
       };
     }
 
-    // FIX: hasDiskon hanya cek persen > 0.
     const hasDiskon = diskonHeaderPersen > 0;
     const persen = hasDiskon ? diskonHeaderPersen : 0;
     const final_price_item = Math.round(c.harga_satuan * c.qty * (1 - persen / 100));
@@ -141,9 +162,9 @@ export async function simpanTransaksi(
 
     return {
       ...c,
+      menu_item_id: safeMenuItemId,
       item_type,
       diskon_persen: persen,
-      // V1 mode: preset_id = null tapi diskon tetap diterapkan (schema sudah difix)
       diskon_preset_id: hasDiskon ? diskonHeaderPresetId : null,
       final_price_item,
     };
@@ -157,7 +178,16 @@ export async function simpanTransaksi(
 
   const nomor_order = await generateNomorOrder(umkmId);
 
-  // INSERT header
+  // INSERT header — diskon_persen TIDAK ADA di kolom transaksi (hanya di transaction_items)
+  // Schema check: cash wajib uang_diterima >= grand_total dan kembalian = uang_diterima - grand_total
+  // Untuk V1 (features.payment = false), kita set uang_diterima = grand_total, kembalian = 0
+  const uangFinalForInsert = paymentMethod === "cash"
+    ? (uangDiterima !== null && uangDiterima >= grand_total ? uangDiterima : grand_total)
+    : null;
+  const kembalianFinalForInsert = paymentMethod === "cash"
+    ? (uangFinalForInsert! - grand_total)
+    : null;
+
   const { data: trxRow, error: e1 } = await supabase
     .from("transaksi")
     .insert({
@@ -167,8 +197,8 @@ export async function simpanTransaksi(
       diskon_preset_id: diskonHeaderPresetId,
       payment_method: paymentMethod,
       grand_total,
-      uang_diterima: paymentMethod === "cash" ? uangDiterima : null,
-      kembalian: paymentMethod === "cash" ? kembalian : null,
+      uang_diterima: uangFinalForInsert,
+      kembalian: kembalianFinalForInsert,
       kasir_id: kasirId,
     })
     .select()
@@ -346,7 +376,7 @@ export async function getRingkasanOmzet(umkmId: string): Promise<RingkasanOmzet>
     }
   }
 
-  // Nilai item gratis (BOGO) bulan ini — dari transaction_items item_type promo_free
+  // Nilai item gratis (BOGO) bulan ini
   const { data: bogoData } = await supabase
     .from("transaction_items")
     .select("harga_satuan, qty, transaksi!inner(status, created_at)")
@@ -458,7 +488,6 @@ export async function getAnalisaDiskon(umkmId: string, limit = 10): Promise<Anal
 
   const map = new Map<string, AnalisaDiskon>();
   for (const row of (data ?? []) as AnalisaDiskonRow[]) {
-    // FIX: fallback ke "Diskon X%" jika preset_id null (V1 ENV mode pakai hardcoded preset)
     const nama = (row.diskon_preset?.[0]?.nama) ?? `Diskon ${row.diskon_persen}%`;
     const nilaiDiskon = Math.round(row.harga_satuan * row.qty * row.diskon_persen / 100);
     const cur = map.get(nama) ?? { nama_preset: nama, persen: row.diskon_persen, kali_dipakai: 0, total_nilai_diskon: 0 };

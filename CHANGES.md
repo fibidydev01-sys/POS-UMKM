@@ -1,74 +1,86 @@
-# POS UMKM — Changes Bundle V1+V2
+# POS UMKM — Perubahan v2
 
-## Pembagian Fitur V1 vs V2
+## Bug Fixes
 
-| Fitur | V1 | V2 |
-|---|---|---|
-| Cash + QRIS | ✅ | ✅ |
-| Transfer + Debit | ❌ | ✅ |
-| Void transaksi | ✅ | ✅ |
-| Refund transaksi | ❌ | ✅ |
-| **Preset diskon (dari DB)** | **✅** | **✅** |
-| **Kelola preset diskon** | **✅** | **✅** |
-| BOGO / Buy2Get1 | ❌ | ✅ |
-| Kelola program promo | ❌ | ✅ |
+### 1. FIX: Schema constraint `transaksi_check`
+- **File:** `src/lib/db/transaksi.ts`
+- **Problem:** INSERT transaksi gagal karena kolom `diskon_persen` NOT NULL tidak disertakan
+- **Fix:** Tambah `diskon_persen: diskonHeaderPersen ?? 0` ke INSERT header transaksi
+- **Juga:** Tambah `diskon_persen: number` ke interface `Transaksi`
 
-**Kunci:** Preset diskon AKTIF di V1 maupun V2. Default 4 preset
-(5%, 10%, 15%, 20%) di-seed otomatis saat aktivasi kode.
+## UI/UX Changes
 
----
+### 2. Hapus tombol Trash dari cart-line
+- **File:** `src/components/kasir/cart-line.tsx`
+- User cukup kurangi qty ke 0 untuk hapus item
+- Prop `onHapus` dihapus dari CartLine dan CartPanel
 
-## Feature Flags (features.ts)
+### 3. Tombol keranjang — bar persegi panjang rounded
+- **File:** `src/components/kasir/kasir-view.tsx`
+- Style: `fixed bottom-[68px] left-4 right-4 rounded-xl` — accessible bar penuh
+- Tampilkan jumlah item + grand total
+- Desktop: auto-right positioned
 
-```typescript
-// 4 flags saja — diskonDariDB dihapus (preset selalu dari DB)
-export const features = {
-  paymentExtended: isV2,   // Transfer + Debit
-  refund: isV2,            // Refund button
-  promoEngine: isV2,       // BOGO engine
-  promoManagement: isV2,   // Card Program Promo di pengaturan
-}
+### 4. Diskon picker — Drawer (bukan ToggleGroup inline)
+- **File:** `src/components/kasir/discount-picker.tsx`
+- Chip trigger → buka Drawer dengan list preset
+- Lebih clean, tidak overflow
+
+### 5. Kategori di FormMenuItem — sub-drawer di dalam form
+- **File:** `src/components/menu/form-menu-item.tsx`
+- Kategori selector dipindah ke dalam body form
+- Tap tombol Kategori → sub-Drawer pilih kategori
+- Tidak ada CategoryBadge di header lagi
+
+### 6. Hapus tombol Kategori dari header menu-view
+- **File:** `src/components/menu/menu-view.tsx`
+- Tombol "Kategori" di pojok kanan atas dihapus
+- Drawer kelola kategori masih tersedia tapi tidak di-expose dari header
+
+### 7. Halaman Diskon — hide jika kosong
+- **File:** `src/components/pengaturan/diskon-view.tsx`
+- Jika semua preset dihapus: tampilkan empty state saja
+- Tidak ada list kosong yang ditampilkan
+
+### 8. Ganti semua emoji → Lucide icons
+- Files: kasir-view, riwayat-view, dashboard-view, promo-view, diskon-view, alert-backup, pengaturan-view, aktivasi-view
+- Tidak ada emoji di mana pun
+
+## Schema Fix (Supabase)
+
+Jika kolom `diskon_persen` belum ada di tabel `transaksi`, jalankan:
+```sql
+ALTER TABLE transaksi 
+ADD COLUMN IF NOT EXISTS diskon_persen numeric NOT NULL DEFAULT 0;
 ```
 
 ---
 
-## Schema Fixes (schema.sql)
+## v3 — Final
 
-**FIX-01:** `promo_rule` — `CHECK (qty_gratis <= qty_beli)`
-- Sebelumnya `<` memblok BOGO (beli=1, gratis=1 → 1 < 1 = FALSE)
+### Bug Fix: PGRST204 diskon_persen column not found
+- **File:** `src/lib/db/transaksi.ts`
+- Kolom `diskon_persen` tidak ada di tabel `transaksi` (hanya di `transaction_items`)
+- Fix: Hapus `diskon_persen` dari INSERT header transaksi
+- Fix: V1 cash mode → auto-set `uang_diterima = grand_total`, `kembalian = 0`
+  (schema check mensyaratkan cash wajib punya nilai ini)
 
-**FIX-02:** `transaction_items` — discounted item tidak wajib preset_id
-- Sebelumnya `AND diskon_preset_id IS NOT NULL` menyebabkan FK error
+### UI: Hapus pensil icon dari menu row
+- **File:** `src/components/menu/menu-item-card.tsx`
+- Tap baris = buka edit — pensil redundan, dihapus
+- Switch tetap untuk toggle ketersediaan
 
----
+### UI: FAB Tambah menu — posisi tengah bawah (Instagram style)
+- **File:** `src/components/menu/menu-view.tsx`
+- `left-1/2 -translate-x-1/2` → centered
+- Selalu tampil (bukan hanya saat ada item)
 
-## File Changes
+### UI: Tinggi drawer Pilih Kategori = tinggi Tambah Menu
+- **File:** `src/components/menu/form-menu-item.tsx`, `menu-view.tsx`
+- Sub-drawer kategori: `max-h-[88dvh]` (sama dengan FormDrawer)
+- Drawer Kelola Kategori: `max-h-[88dvh]` (sama)
 
-| File | Status | Perubahan |
-|---|---|---|
-| `src/lib/config/features.ts` | NEW | 4 flags, hapus `diskonDariDB` |
-| `src/lib/db/transaksi.ts` | FIXED | `hasDiskon` fix + `AnalisaDiskon` fallback |
-| `src/app/kasir/page.tsx` | UPDATED | Preset selalu dari DB, promo conditional |
-| `src/components/kasir/diskon-input.tsx` | SIMPLIFIED | Hapus hardcoded V1 mode |
-| `src/components/kasir/keranjang-panel.tsx` | UPDATED | 2 vs 4 payment method |
-| `src/app/riwayat/page.tsx` | UPDATED | Refund button V2 only |
-| `src/app/pengaturan/page.tsx` | UPDATED | Preset Diskon selalu tampil, Promo V2 only |
-
----
-
-## Deploy
-
-### .env.local
-```
-NEXT_PUBLIC_POS_VERSION=v1   # launch awal
-NEXT_PUBLIC_POS_VERSION=v2   # flip ke V2
-```
-
-### Kode Aktivasi
-| Kode | version_access | Experience |
-|---|---|---|
-| UMKM-MAMTA-01, UMKM-PILOT-02, dll | v1 | V1 |
-| UMKM-V2-01, UMKM-V2-02, UMKM-V2-TEST | v2 | V2 |
-
-> Catatan: `version_access` di DB hanya untuk display (`app_version` di info card).
-> Feature experience dikontrol ENV, bukan DB.
+### Schema Final: schema.sql
+- File baru: `schema.sql` — schema lengkap siap run di Supabase
+- Tabel transaksi TIDAK punya kolom diskon_persen
+- Semua check constraint sudah benar

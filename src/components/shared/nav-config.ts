@@ -7,7 +7,6 @@ export interface NavEntry {
   icon: LucideIcon;
 }
 
-/** Urutan & label selaras dengan tab bar React Native. */
 export const NAV: NavEntry[] = [
   { href: "/dashboard", label: "Beranda", icon: Home },
   { href: "/kasir", label: "Kasir", icon: ShoppingCart },
@@ -16,7 +15,6 @@ export const NAV: NavEntry[] = [
   { href: "/pengaturan", label: "Pengaturan", icon: Settings },
 ];
 
-/** Path yang tidak menampilkan navigasi sama sekali. */
 export const HIDDEN_NAV_PATHS = ["/", "/aktivasi"];
 
 export function isPathActive(pathname: string, href: string): boolean {

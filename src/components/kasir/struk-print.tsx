@@ -8,10 +8,6 @@ import { formatTanggalJam } from "@/lib/utils/date";
 import { getPaperWidth } from "@/lib/utils/paper";
 import { cn } from "@/lib/utils";
 
-/**
- * StrukPrint — area cetak thermal (id="area-struk"). CSS @media print
- * di globals.css hanya menampilkan elemen ini. Logika tidak berubah.
- */
 export function StrukPrint({
   config,
   trx,
@@ -127,7 +123,7 @@ export function StrukPrint({
       <div className={garis} />
 
       <div className="whitespace-pre-line text-center text-[10px]">
-        {config?.footer_struk || "Terima kasih 🙏"}
+        {config?.footer_struk || "Terima kasih"}
       </div>
     </div>
   );

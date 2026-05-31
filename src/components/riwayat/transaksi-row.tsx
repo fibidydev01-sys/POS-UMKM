@@ -20,13 +20,7 @@ export const STATUS_VARIANT: Record<string, BadgeVariant> = {
   refund: "warning",
 };
 
-export function TransaksiRow({
-  trx,
-  onClick,
-}: {
-  trx: Transaksi;
-  onClick: () => void;
-}) {
+export function TransaksiRow({ trx, onClick }: { trx: Transaksi; onClick: () => void }) {
   const isVoidOrRefund = trx.status !== "completed";
   return (
     <button
@@ -36,22 +30,15 @@ export function TransaksiRow({
         isVoidOrRefund && "opacity-60"
       )}
     >
-      <div
-        className={cn(
-          "grid h-10 w-10 shrink-0 place-items-center rounded-lg text-sm font-bold",
-          isVoidOrRefund ? "bg-muted text-muted-foreground" : "bg-secondary"
-        )}
-      >
+      <div className={cn(
+        "grid h-10 w-10 shrink-0 place-items-center rounded-lg text-sm font-bold",
+        isVoidOrRefund ? "bg-muted text-muted-foreground" : "bg-secondary"
+      )}>
         #{trx.nomor_order.split("-")[1] ?? "?"}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <p
-            className={cn(
-              "font-bold",
-              isVoidOrRefund && "text-muted-foreground line-through"
-            )}
-          >
+          <p className={cn("font-bold", isVoidOrRefund && "text-muted-foreground line-through")}>
             {formatRupiah(trx.grand_total)}
           </p>
           {isVoidOrRefund && (
@@ -59,8 +46,7 @@ export function TransaksiRow({
           )}
         </div>
         <p className="text-xs text-muted-foreground">
-          {formatJam(trx.created_at)} ·{" "}
-          {trx.payment_method === "cash" ? "Tunai" : trx.payment_method.toUpperCase()}
+          {formatJam(trx.created_at)} · {trx.payment_method === "cash" ? "Tunai" : trx.payment_method.toUpperCase()}
         </p>
       </div>
       <ChevronRight className="h-4 w-4 text-muted-foreground" />

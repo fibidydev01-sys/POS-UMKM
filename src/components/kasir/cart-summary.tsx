@@ -3,10 +3,6 @@
 import { formatRupiah } from "@/lib/utils/currency";
 import { Button } from "@/components/ui/button";
 
-/**
- * CartSummary — ringkasan + tombol bayar. Label tombol menyesuaikan
- * V1 (tunai langsung) vs V2 (konfirmasi metode non-tunai).
- */
 export function CartSummary({
   subtotal,
   diskonNominal,
@@ -54,7 +50,7 @@ export function CartSummary({
       </div>
       <Button size="lg" className="w-full" onClick={onBayar} disabled={!canBayar}>
         {saving
-          ? "Memproses…"
+          ? "Memproses..."
           : showPayment && isNonCash
             ? `Konfirmasi Bayar · ${formatRupiah(grandTotal)}`
             : `Bayar · ${formatRupiah(grandTotal)}`}

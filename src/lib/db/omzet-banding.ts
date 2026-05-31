@@ -1,19 +1,14 @@
 import { supabase } from "../supabase/client";
 import { jakartaDateStr, startOfDaysAgoISO } from "../utils/date";
 
-// omzet-banding.ts — data omzet harian untuk grafik perbandingan
-// minggu ini vs minggu lalu (7 hari masing-masing).
-//
-// Setara dengan versi React Native, di-port ke query Supabase.
-
 const TZ = "Asia/Jakarta";
 const OFFSET_MS = 7 * 60 * 60 * 1000;
 const HARI = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 
 export interface OmzetHari {
-  tanggal: string; // "YYYY-MM-DD" zona Jakarta
+  tanggal: string;
   total: number;
-  label: string; // nama hari pendek: Min, Sen, ...
+  label: string;
 }
 
 function jakartaNowParts() {
@@ -21,25 +16,15 @@ function jakartaNowParts() {
   return { y: jak.getUTCFullYear(), m: jak.getUTCMonth(), d: jak.getUTCDate() };
 }
 
-/** Label hari pendek dari tanggal "YYYY-MM-DD" (noon utk hindari geser tgl). */
 function labelHari(tanggal: string): string {
   const dt = new Date(`${tanggal}T12:00:00`);
   return HARI[dt.getDay()] ?? "";
 }
 
-/**
- * 7 hari minggu ini (mulai 6 hari lalu s/d hari ini) +
- * 7 hari minggu sebelumnya (13 s/d 7 hari lalu).
- */
-export async function getOmzetDuaMinggu(
-  umkmId: string
-): Promise<{ ini: OmzetHari[]; lalu: OmzetHari[] }> {
+export async function getOmzetDuaMinggu(umkmId: string): Promise<{ ini: OmzetHari[]; lalu: OmzetHari[] }> {
   const { data, error } = await supabase
-    .from("transaksi")
-    .select("created_at, grand_total")
-    .eq("umkm_id", umkmId)
-    .eq("status", "completed")
-    .gte("created_at", startOfDaysAgoISO(14));
+    .from("transaksi").select("created_at, grand_total")
+    .eq("umkm_id", umkmId).eq("status", "completed").gte("created_at", startOfDaysAgoISO(14));
   if (error) throw error;
 
   const byDate = new Map<string, number>();

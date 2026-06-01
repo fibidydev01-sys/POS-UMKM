@@ -9,7 +9,6 @@ import type { MenuItem, MenuItemInput } from "@/lib/db/menu";
 
 import { PageSkeleton } from "@/components/shared/page-skeleton";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { Button } from "@/components/ui/button";
 import {
   Empty,
   EmptyMedia,

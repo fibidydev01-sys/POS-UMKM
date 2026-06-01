@@ -56,6 +56,8 @@ export interface CartPanelProps {
   saving: boolean;
   /** V3: tenant punya PG QRIS aktif → metode QRIS lewat gateway (QR otomatis). */
   qrisPgReady?: boolean;
+  /** V3: navigasi ke setup gateway bila QRIS dipilih tapi PG belum aktif. */
+  onSetupGateway?: () => void;
 }
 
 /**
@@ -124,6 +126,7 @@ function PanelBody({
   onBayar,
   saving,
   qrisPgReady,
+  onSetupGateway,
   headerSlot,
   footerSlot,
 }: CartPanelProps & { headerSlot: React.ReactNode; footerSlot: "drawer" | "sheet" }) {
@@ -182,6 +185,8 @@ function PanelBody({
                 onUangChange={onUangDiterimaChange}
                 grandTotal={grandTotal}
                 autoQris={autoQris}
+                pgReady={!!qrisPgReady}
+                onSetupGateway={onSetupGateway}
               />
             </>
           )}

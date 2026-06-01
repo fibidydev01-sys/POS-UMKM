@@ -91,7 +91,12 @@ export function KasirView() {
 
   async function handleBayar() {
     // R1 — jalur QRIS-via-PG: buat QR otomatis, transaksi dibuat di webhook (R8).
-    if (features.qrisPayment && pgReady && paymentMethod === "qris") {
+    if (features.qrisPayment && paymentMethod === "qris") {
+      if (!pgReady) {
+        // Build v3 tapi belum ada gateway aktif → jangan diam-diam catat manual.
+        toast.error("Gateway QRIS belum terhubung. Hubungkan dulu di Pengaturan → Pembayaran.");
+        return;
+      }
       setQrisOpen(true);
       await pay.create({
         cart,
@@ -183,6 +188,7 @@ export function KasirView() {
         onBayar={handleBayar}
         saving={saving || pay.state === "creating"}
         qrisPgReady={pgReady}
+        onSetupGateway={() => router.push("/pengaturan/pembayaran")}
       />
 
       <StrukDialog struk={struk} config={config} onClose={() => setStruk(null)} />
@@ -196,10 +202,13 @@ export function KasirView() {
         state={pay.state}
         qrString={pay.qrString}
         qrUrl={pay.qrUrl}
+        provider={pay.provider}
         secondsLeft={pay.secondsLeft}
         error={pay.error}
         amount={grandTotal}
         label={config?.nama_umkm || undefined}
+        checking={pay.checking}
+        onCheckNow={pay.checkNow}
         onRegenerate={pay.regenerate}
       />
     </main>

@@ -4,7 +4,9 @@ import * as React from "react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Input } from "@/components/ui/input";
 import { parseRupiah, formatAngka, formatRupiah } from "@/lib/utils/currency";
+import { features } from "@/lib/config/features";
 import type { PaymentMethod } from "@/store/cart-store";
+import { QrCode, AlertTriangle } from "lucide-react";
 
 const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   cash: "Tunai",
@@ -22,6 +24,8 @@ export function PaymentMethodPicker({
   onUangChange,
   grandTotal,
   autoQris = false,
+  pgReady = false,
+  onSetupGateway,
 }: {
   method: PaymentMethod;
   onMethodChange: (m: PaymentMethod) => void;
@@ -30,10 +34,17 @@ export function PaymentMethodPicker({
   grandTotal: number;
   /** V3: true bila QRIS lewat PG aktif → QR dibuat otomatis saat tekan Bayar. */
   autoQris?: boolean;
+  /** V3: tenant punya gateway aktif. */
+  pgReady?: boolean;
+  /** Navigasi ke halaman setup gateway (Pengaturan → Pembayaran). */
+  onSetupGateway?: () => void;
 }) {
   const uangNum = parseRupiah(uangDiterima);
   const isCash = method === "cash";
   const kembalian = isCash && uangNum >= grandTotal ? uangNum - grandTotal : null;
+
+  // V3 build, metode QRIS dipilih, tapi belum ada gateway aktif → arahkan ke setup.
+  const qrisNeedsSetup = features.qrisPayment && method === "qris" && !pgReady;
 
   return (
     <div className="flex flex-col gap-2">
@@ -79,6 +90,27 @@ export function PaymentMethodPicker({
             <p className="text-xs text-destructive">
               Uang kurang {formatRupiah(grandTotal - uangNum)}
             </p>
+          )}
+        </div>
+      ) : qrisNeedsSetup ? (
+        <div className="mt-1 flex flex-col gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-3">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+            <div className="flex flex-col gap-0.5">
+              <p className="text-sm font-semibold text-warning">Gateway QRIS belum terhubung</p>
+              <p className="text-xs text-warning/80">
+                Hubungkan Payment Gateway dulu agar QR otomatis muncul saat bayar.
+              </p>
+            </div>
+          </div>
+          {onSetupGateway && (
+            <button
+              type="button"
+              onClick={onSetupGateway}
+              className="inline-flex items-center gap-1.5 self-start rounded-lg bg-warning px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-warning/90"
+            >
+              <QrCode className="h-3.5 w-3.5" /> Setup Gateway QRIS
+            </button>
           )}
         </div>
       ) : (

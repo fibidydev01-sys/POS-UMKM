@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
   if (pending) {
     if (pending.amount === grandTotal) {
       // Double-click / refresh → kembalikan session yang sama (bukan invoice baru).
-      return ok(pending.id, pending.qr_string, pending.qr_url, pending.expires_at);
+      return ok(pending.id, pending.provider, pending.qr_string, pending.qr_url, pending.expires_at);
     }
     // Order berubah → kadaluarsakan yang lama, buat baru.
     await markStatus(pending.id, "expired", true);
@@ -95,19 +95,26 @@ export async function POST(request: NextRequest) {
       cartSnapshot: { cart, diskonPresetId, diskonPersen },
       expiresAt: qr.expires_at,
     });
-    return ok(session.id, session.qr_string, session.qr_url, session.expires_at);
+    return ok(session.id, session.provider, session.qr_string, session.qr_url, session.expires_at);
   } catch {
     // Race idempotency: unique index pending menolak → ambil yang sudah ada.
     const existing = await findActivePending(umkmId);
-    if (existing) return ok(existing.id, existing.qr_string, existing.qr_url, existing.expires_at);
+    if (existing) return ok(existing.id, existing.provider, existing.qr_string, existing.qr_url, existing.expires_at);
     return NextResponse.json({ ok: false, pesan: "Gagal menyimpan sesi pembayaran." }, { status: 500 });
   }
 }
 
-function ok(sessionId: string, qrString: string, qrUrl: string | null, expiresAt: string) {
+function ok(
+  sessionId: string,
+  provider: string,
+  qrString: string,
+  qrUrl: string | null,
+  expiresAt: string
+) {
   return NextResponse.json({
     ok: true,
     sessionId,
+    provider,
     qr_string: qrString,
     qr_url: qrUrl,
     expires_at: expiresAt,

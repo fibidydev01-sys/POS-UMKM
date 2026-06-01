@@ -61,8 +61,8 @@ interface PromoCartItem extends CartItem {
   _is_promo_free?: boolean;
 }
 
-// Baris transaction_items siap-INSERT (id digenerate di client).
-interface ItemInsertRow {
+// Baris transaction_items siap-INSERT (id digenerate di client/server).
+export interface ItemInsertRow {
   id: string;
   transaksi_id: string;
   umkm_id: string;
@@ -75,6 +75,20 @@ interface ItemInsertRow {
   diskon_preset_id: string | null;
   triggered_by_item_id: string | null;
   final_price_item: number;
+}
+
+// Baris transaksi (header) siap-INSERT.
+export interface TrxInsertRow {
+  id: string;
+  umkm_id: string;
+  nomor_order: string;
+  status: "completed";
+  diskon_preset_id: string | null;
+  payment_method: "cash" | "qris" | "transfer" | "debit";
+  grand_total: number;
+  uang_diterima: number | null;
+  kembalian: number | null;
+  kasir_id: string;
 }
 
 // Supabase row types untuk query results
@@ -114,25 +128,125 @@ export async function generateNomorOrder(umkmId: string): Promise<string> {
   return data as string;
 }
 
-// ── Simpan transaksi ──────────────────────────────────────────
+// ── Builder MURNI (dipakai client cash & webhook QRIS) ─────────
+
+export interface BuildTransaksiArgs {
+  umkmId: string;
+  kasirId: string;
+  transaksiId: string;        // UUID header (digenerate pemanggil)
+  nomorOrder: string;         // sudah digenerate pemanggil (RPC)
+  cart: CartItem[];           // final — sudah lewat promo engine
+  diskonHeaderPresetId: string | null;
+  diskonHeaderPersen: number;
+  paymentMethod: "cash" | "qris" | "transfer" | "debit";
+  uangDiterima: number | null;
+  validMenuIds: Set<string>;  // hasil validasi FK (dilakukan pemanggil)
+}
 
 /**
- * Simpan transaksi ke Supabase.
+ * [FIX B2] Bangun baris-baris siap-INSERT TANPA call DB, supaya logika BOGO +
+ * pairing triggered_by_item_id tidak terduplikasi antara jalur kasir (cash, client)
+ * dan jalur webhook (QRIS, server). Pemanggil yang melakukan INSERT batch.
  *
- * [FIX B2] PENTING — kenapa BATCH INSERT, bukan loop per-item:
- *   Trigger `check_grand_total` adalah CONSTRAINT TRIGGER DEFERRABLE → dicek
- *   saat COMMIT. Kalau item di-INSERT satu-satu (tiap call = 1 transaksi DB =
- *   1 COMMIT), maka saat commit item ke-1, SUM(final_price_item) ≠ grand_total
- *   → EXCEPTION → transaksi >1 item GAGAL.
- *   Solusi: generate UUID item di CLIENT, lalu INSERT SEMUA item dalam SATU
- *   batch (.insert([...])). Satu batch = satu statement = satu COMMIT, jadi saat
- *   trigger deferred mengecek, semua baris sudah ada → SUM cocok.
- *   (Wajib jalankan 04-schema-final.sql: trigger triggered_by_item_id juga
- *    diubah jadi DEFERRABLE agar pairing BOGO valid dalam satu batch.)
+ * Non-cash (qris/transfer/debit) → uang_diterima & kembalian = null.
+ */
+export function buildTransaksiPayload(args: BuildTransaksiArgs): {
+  trxRow: TrxInsertRow;
+  itemRows: ItemInsertRow[];
+  grandTotal: number;
+} {
+  const {
+    umkmId, kasirId, transaksiId, nomorOrder, cart,
+    diskonHeaderPresetId, diskonHeaderPersen, paymentMethod, uangDiterima, validMenuIds,
+  } = args;
+
+  // 1) Siapkan SEMUA item; pairKey memakai ORIGINAL menu_item_id agar pasangan
+  //    beli↔gratis (BOGO) tetap stabil walau UUID-nya stale/di-null-kan (FK aman).
+  const prepared: { id: string; pairKey: string | null; isPromoFree: boolean; row: ItemInsertRow }[] =
+    cart.map((c) => {
+      const extended = c as PromoCartItem;
+      const originalMenuId = c.menu_item_id;
+      const safeMenuId = originalMenuId && validMenuIds.has(originalMenuId) ? originalMenuId : null;
+      const pairIndex = extended._promo_pair_index ?? null;
+      const pairKey = originalMenuId && pairIndex !== null ? `${originalMenuId}_${pairIndex}` : null;
+      const isPromoFree = c.item_type === "promo_free";
+      const itemId = crypto.randomUUID();
+
+      if (isPromoFree) {
+        return {
+          id: itemId, pairKey, isPromoFree,
+          row: {
+            id: itemId, transaksi_id: transaksiId, umkm_id: umkmId,
+            menu_item_id: safeMenuId, nama_produk: c.nama_produk,
+            harga_satuan: c.harga_satuan, qty: c.qty,
+            item_type: "promo_free", diskon_persen: 0, diskon_preset_id: null,
+            triggered_by_item_id: null, // diisi di step 2
+            final_price_item: 0,
+          },
+        };
+      }
+
+      const hasDiskon = diskonHeaderPersen > 0;
+      const persen = hasDiskon ? diskonHeaderPersen : 0;
+      const final_price_item = Math.round(c.harga_satuan * c.qty * (1 - persen / 100));
+
+      return {
+        id: itemId, pairKey, isPromoFree,
+        row: {
+          id: itemId, transaksi_id: transaksiId, umkm_id: umkmId,
+          menu_item_id: safeMenuId, nama_produk: c.nama_produk,
+          harga_satuan: c.harga_satuan, qty: c.qty,
+          item_type: hasDiskon ? "discounted" : "normal",
+          diskon_persen: persen,
+          diskon_preset_id: hasDiskon ? diskonHeaderPresetId : null,
+          triggered_by_item_id: null,
+          final_price_item,
+        },
+      };
+    });
+
+  // 2) Pasangkan promo_free → id item pemicu (parent) via pairKey.
+  const pairToId = new Map<string, string>();
+  for (const p of prepared) if (!p.isPromoFree && p.pairKey) pairToId.set(p.pairKey, p.id);
+  for (const p of prepared) {
+    if (p.isPromoFree && p.pairKey) p.row.triggered_by_item_id = pairToId.get(p.pairKey) ?? null;
+  }
+
+  // 3) Hitung grand_total & kembalian.
+  const grandTotal = prepared.reduce((s, p) => s + p.row.final_price_item, 0);
+  const uangFinal = paymentMethod === "cash"
+    ? (uangDiterima !== null && uangDiterima >= grandTotal ? uangDiterima : grandTotal)
+    : null;
+  const kembalianFinal = paymentMethod === "cash" ? (uangFinal! - grandTotal) : null;
+
+  const trxRow: TrxInsertRow = {
+    id: transaksiId,
+    umkm_id: umkmId,
+    nomor_order: nomorOrder,
+    status: "completed",
+    diskon_preset_id: diskonHeaderPresetId,
+    payment_method: paymentMethod,
+    grand_total: grandTotal,
+    uang_diterima: uangFinal,
+    kembalian: kembalianFinal,
+    kasir_id: kasirId,
+  };
+
+  return { trxRow, itemRows: prepared.map((p) => p.row), grandTotal };
+}
+
+// ── Simpan transaksi (jalur kasir client — cash/manual) ───────
+
+/**
+ * Simpan transaksi ke Supabase dari client (V1/V2 cash & metode manual).
+ * Untuk QRIS V3, pembuatan transaksi dilakukan SERVER-SIDE di webhook
+ * (app/api/payment/webhook/[provider]/route.ts) memakai builder yang sama.
  *
- * [FIX B8] Rollback bersih: kalau batch item gagal → DELETE header. FK
- *   transaction_items.transaksi_id ON DELETE CASCADE menyapu item-nya (bukan
- *   lagi sekadar status=void yang menyisakan sampah).
+ * [FIX B2] BATCH INSERT (bukan loop) — trigger check_grand_total DEFERRABLE dicek
+ *   saat COMMIT. Satu batch = satu statement = satu COMMIT → SUM(final_price_item)
+ *   cocok dengan grand_total. Self-FK triggered_by_item_id valid karena parent &
+ *   child dalam satu statement.
+ * [FIX B8] Rollback bersih: kalau batch item gagal → DELETE header (CASCADE menyapu item).
  *
  * CATATAN SCHEMA:
  * - Kolom diskon_persen TIDAK ADA di tabel transaksi (hanya di transaction_items).
@@ -164,111 +278,37 @@ export async function simpanTransaksi(
     for (const row of (validRows ?? [])) validMenuIds.add(row.id);
   }
 
-  // 2) Siapkan SEMUA item dengan id UUID digenerate di client.
-  //    pairKey memakai ORIGINAL menu_item_id (bukan yang disanitasi) agar
-  //    pasangan beli↔gratis (BOGO) tetap stabil walau UUID-nya stale.
+  // 2) Susun baris via builder murni (logika BOGO/diskon dipusatkan di sana).
   const transaksiId = crypto.randomUUID();
-
-  const prepared: { id: string; pairKey: string | null; isPromoFree: boolean; row: ItemInsertRow }[] =
-    cart.map((c) => {
-      const extended = c as PromoCartItem;
-      const originalMenuId = c.menu_item_id;
-      const safeMenuId = originalMenuId && validMenuIds.has(originalMenuId) ? originalMenuId : null;
-      const pairIndex = extended._promo_pair_index ?? null;
-      const pairKey = originalMenuId && pairIndex !== null ? `${originalMenuId}_${pairIndex}` : null;
-      const isPromoFree = c.item_type === "promo_free";
-      const itemId = crypto.randomUUID();
-
-      if (isPromoFree) {
-        return {
-          id: itemId, pairKey, isPromoFree,
-          row: {
-            id: itemId, transaksi_id: transaksiId, umkm_id: umkmId,
-            menu_item_id: safeMenuId, nama_produk: c.nama_produk,
-            harga_satuan: c.harga_satuan, qty: c.qty,
-            item_type: "promo_free", diskon_persen: 0, diskon_preset_id: null,
-            triggered_by_item_id: null, // diisi di step 3
-            final_price_item: 0,
-          },
-        };
-      }
-
-      const hasDiskon = diskonHeaderPersen > 0;
-      const persen = hasDiskon ? diskonHeaderPersen : 0;
-      const final_price_item = Math.round(c.harga_satuan * c.qty * (1 - persen / 100));
-
-      return {
-        id: itemId, pairKey, isPromoFree,
-        row: {
-          id: itemId, transaksi_id: transaksiId, umkm_id: umkmId,
-          menu_item_id: safeMenuId, nama_produk: c.nama_produk,
-          harga_satuan: c.harga_satuan, qty: c.qty,
-          item_type: hasDiskon ? "discounted" : "normal",
-          diskon_persen: persen,
-          diskon_preset_id: hasDiskon ? diskonHeaderPresetId : null,
-          triggered_by_item_id: null,
-          final_price_item,
-        },
-      };
-    });
-
-  // 3) Pasangkan promo_free → id item pemicu (parent) via pairKey.
-  const pairToId = new Map<string, string>();
-  for (const p of prepared) if (!p.isPromoFree && p.pairKey) pairToId.set(p.pairKey, p.id);
-  for (const p of prepared) {
-    if (p.isPromoFree && p.pairKey) p.row.triggered_by_item_id = pairToId.get(p.pairKey) ?? null;
-  }
-
-  // 4) Hitung grand_total & kembalian.
-  const grand_total = prepared.reduce((s, p) => s + p.row.final_price_item, 0);
-  const uangFinalForInsert = paymentMethod === "cash"
-    ? (uangDiterima !== null && uangDiterima >= grand_total ? uangDiterima : grand_total)
-    : null;
-  const kembalianFinalForInsert = paymentMethod === "cash"
-    ? (uangFinalForInsert! - grand_total)
-    : null;
-
   const nomor_order = await generateNomorOrder(umkmId);
+  const { trxRow, itemRows } = buildTransaksiPayload({
+    umkmId, kasirId, transaksiId, nomorOrder: nomor_order, cart,
+    diskonHeaderPresetId, diskonHeaderPersen, paymentMethod, uangDiterima, validMenuIds,
+  });
 
-  // 5) INSERT header (pakai id yang sudah kita generate).
-  const { data: trxRow, error: e1 } = await supabase
+  // 3) INSERT header.
+  const { data: trxRowData, error: e1 } = await supabase
     .from("transaksi")
-    .insert({
-      id: transaksiId,
-      umkm_id: umkmId,
-      nomor_order,
-      status: "completed",
-      diskon_preset_id: diskonHeaderPresetId,
-      payment_method: paymentMethod,
-      grand_total,
-      uang_diterima: uangFinalForInsert,
-      kembalian: kembalianFinalForInsert,
-      kasir_id: kasirId,
-    })
+    .insert(trxRow)
     .select()
     .single();
+  if (e1 || !trxRowData) throw e1 ?? new Error("Gagal menyimpan transaksi");
 
-  if (e1 || !trxRow) throw e1 ?? new Error("Gagal menyimpan transaksi");
-
-  // 6) INSERT SEMUA item dalam SATU batch. Trigger grand_total & triggered_by
-  //    di-DEFER → dicek saat COMMIT, saat semua baris sudah ada (SUM cocok).
-  //    Self-FK triggered_by_item_id valid karena parent & child satu statement.
+  // 4) INSERT SEMUA item dalam SATU batch (trigger grand_total & triggered_by di-DEFER).
   let insertedItems: TransactionItem[] = [];
-  if (prepared.length > 0) {
+  if (itemRows.length > 0) {
     const { data, error: eItems } = await supabase
       .from("transaction_items")
-      .insert(prepared.map((p) => p.row))
+      .insert(itemRows)
       .select();
-
     if (eItems || !data) {
-      // [FIX B8] Rollback bersih: hapus header, item ikut CASCADE (FIX B3 di SQL).
-      await supabase.from("transaksi").delete().eq("id", transaksiId);
+      await supabase.from("transaksi").delete().eq("id", transaksiId); // [FIX B8] CASCADE
       throw eItems ?? new Error("Gagal menyimpan item transaksi");
     }
     insertedItems = data as TransactionItem[];
   }
 
-  return { trx: trxRow as Transaksi, items: insertedItems };
+  return { trx: trxRowData as Transaksi, items: insertedItems };
 }
 
 // ── Void & Refund ─────────────────────────────────────────────

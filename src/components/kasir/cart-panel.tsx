@@ -54,6 +54,8 @@ export interface CartPanelProps {
   onUangDiterimaChange: (v: string) => void;
   onBayar: () => void;
   saving: boolean;
+  /** V3: tenant punya PG QRIS aktif → metode QRIS lewat gateway (QR otomatis). */
+  qrisPgReady?: boolean;
 }
 
 /**
@@ -121,11 +123,15 @@ function PanelBody({
   onUangDiterimaChange,
   onBayar,
   saving,
+  qrisPgReady,
   headerSlot,
   footerSlot,
 }: CartPanelProps & { headerSlot: React.ReactNode; footerSlot: "drawer" | "sheet" }) {
   const showPayment = features.payment;
   const { subtotal, diskonNominal, grandTotal } = hitungGrandTotal(cart, diskonPersen);
+
+  // V3: QRIS lewat PG aktif → QR otomatis (bukan konfirmasi manual).
+  const autoQris = !!qrisPgReady && features.qrisPayment && paymentMethod === "qris";
 
   const promoFreeItems = (cart as ExtendedCartItem[]).filter(
     (c) => c.item_type === "promo_free"
@@ -163,7 +169,6 @@ function PanelBody({
           <DiscountPicker
             presets={presets}
             selectedId={diskonPresetId}
-            selectedPersen={diskonPersen}
             onChange={onDiskonChange}
           />
 
@@ -176,6 +181,7 @@ function PanelBody({
                 uangDiterima={uangDiterima}
                 onUangChange={onUangDiterimaChange}
                 grandTotal={grandTotal}
+                autoQris={autoQris}
               />
             </>
           )}
@@ -193,6 +199,7 @@ function PanelBody({
           saving={saving}
           showPayment={showPayment}
           isNonCash={paymentMethod !== "cash"}
+          autoQris={autoQris}
           onBayar={onBayar}
         />
       </Footer>

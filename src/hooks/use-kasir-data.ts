@@ -24,6 +24,8 @@ export function useKasirData() {
   const { user, isLoading: userLoading } = useCurrentUser();
   const [data, setData] = React.useState<KasirData | null>(null);
   const [loading, setLoading] = React.useState(true);
+  // V3: apakah tenant punya Payment Gateway aktif? (degradasi anggun untuk QRIS)
+  const [pgReady, setPgReady] = React.useState(false);
 
   React.useEffect(() => {
     if (userLoading || !user) return;
@@ -41,7 +43,27 @@ export function useKasirData() {
     return () => { alive = false; };
   }, [user, userLoading]);
 
-  return { user, data, isLoading: userLoading || loading };
+  // Cek ketersediaan PG hanya bila build v3 (qrisPayment). Server-only → lewat API route.
+  React.useEffect(() => {
+    if (userLoading || !user || !features.qrisPayment) return;
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/payment/credentials");
+        const json = await res.json();
+        if (alive && json?.ok) {
+          setPgReady(
+            (json.credentials ?? []).some((c: { is_active: boolean }) => c.is_active)
+          );
+        }
+      } catch {
+        /* abaikan — pgReady tetap false (QRIS otomatis disembunyikan) */
+      }
+    })();
+    return () => { alive = false; };
+  }, [user, userLoading]);
+
+  return { user, data, isLoading: userLoading || loading, pgReady };
 }
 
 export function useCart(promoRules: PromoRule[]) {

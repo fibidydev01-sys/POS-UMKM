@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { Plus, UtensilsCrossed, SlidersHorizontal } from "lucide-react";
+import { Plus, UtensilsCrossed } from "lucide-react";
 
 import { useMenuManager } from "@/hooks/use-menu-manager";
 import type { MenuItem, MenuItemInput } from "@/lib/db/menu";
@@ -15,7 +15,7 @@ import {
   EmptyTitle,
   EmptyDescription,
 } from "@/components/ui/empty";
-import { KategoriListWithManage } from "./kategori-list";
+import { KategoriList } from "./kategori-list";
 import { MenuItemCard } from "./menu-item-card";
 import { FormMenuItem } from "./form-menu-item";
 
@@ -35,7 +35,6 @@ export function MenuView() {
   const [katAktif, setKatAktif] = React.useState<string | null>(null);
   const [formOpen, setFormOpen] = React.useState(false);
   const [editItem, setEditItem] = React.useState<MenuItem | null>(null);
-  const [initialView, setInitialView] = React.useState<"form" | "kelola">("form");
   const [deleteItem, setDeleteItem] = React.useState<MenuItem | null>(null);
   const [deleting, setDeleting] = React.useState(false);
   const [togglingId, setTogglingId] = React.useState<string | null>(null);
@@ -47,9 +46,7 @@ export function MenuView() {
 
   if (isLoading) return <PageSkeleton variant="list" />;
 
-  const itemsTampil = katAktif
-    ? items.filter((i) => i.kategori_id === katAktif)
-    : items;
+  const itemsTampil = katAktif ? items.filter((i) => i.kategori_id === katAktif) : items;
 
   async function handleSimpan(input: MenuItemInput) {
     await simpanItem(input, editItem?.id);
@@ -79,6 +76,7 @@ export function MenuView() {
     }
   }
 
+  // Hapus kategori dari dalam FormMenuItem — bersihkan filter aktif bila perlu.
   async function handleHapusKat(id: string) {
     await hapusKat(id);
     if (katAktif === id) setKatAktif(null);
@@ -86,30 +84,15 @@ export function MenuView() {
 
   return (
     <main className="mx-auto max-w-2xl px-4 pb-28 pt-5">
-      {/* Header dengan tombol Kategori di pojok kanan atas */}
-      <header className="mb-4 flex items-start justify-between gap-2">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Kelola
-          </p>
-          <h1 className="text-xl font-extrabold">Menu &amp; Kategori</h1>
-        </div>
-        <button
-          onClick={() => {
-            setEditItem(null);
-            setInitialView("kelola");
-            setFormOpen(true);
-          }}
-          className="flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-secondary"
-        >
-          <SlidersHorizontal className="h-3.5 w-3.5" />
-          Kategori
-        </button>
+      <header className="mb-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Kelola
+        </p>
+        <h1 className="text-xl font-extrabold">Menu &amp; Kategori</h1>
       </header>
 
-      {/* Chip filter kategori — tanpa tombol kelola */}
       <div className="mb-3">
-        <KategoriListWithManage
+        <KategoriList
           kategori={kategori}
           aktif={katAktif}
           onPilih={setKatAktif}
@@ -130,28 +113,17 @@ export function MenuView() {
             <MenuItemCard
               key={item.id}
               item={item}
-              namaKategori={
-                item.kategori_id ? katMap.get(item.kategori_id) : undefined
-              }
+              namaKategori={item.kategori_id ? katMap.get(item.kategori_id) : undefined}
               toggling={togglingId === item.id}
-              onEdit={() => {
-                setEditItem(item);
-                setInitialView("form");
-                setFormOpen(true);
-              }}
+              onEdit={() => { setEditItem(item); setFormOpen(true); }}
               onToggle={(v) => handleToggle(item, v)}
             />
           ))}
         </div>
       )}
 
-      {/* FAB Tambah Menu */}
       <button
-        onClick={() => {
-          setEditItem(null);
-          setInitialView("form");
-          setFormOpen(true);
-        }}
+        onClick={() => { setEditItem(null); setFormOpen(true); }}
         aria-label="Tambah menu"
         className="fixed bottom-[68px] left-4 right-4 z-30 flex items-center justify-between gap-3 rounded-xl bg-primary px-4 py-3 text-primary-foreground shadow-lg transition-transform active:scale-[0.99] md:bottom-4 md:left-auto md:right-6 md:w-auto md:min-w-[220px] print:hidden"
       >
@@ -159,18 +131,14 @@ export function MenuView() {
           <Plus className="h-5 w-5" />
           <span className="font-bold">Tambah Menu</span>
         </div>
-        <span className="text-sm font-semibold opacity-80">
-          {items.length} produk
-        </span>
+        <span className="text-sm font-semibold opacity-80">{items.length} produk</span>
       </button>
 
-      {/* Drawer — 1 drawer, 2 panel */}
       <FormMenuItem
         open={formOpen}
         onOpenChange={setFormOpen}
         kategori={kategori}
         item={editItem}
-        initialView={initialView}
         onSimpan={handleSimpan}
         onHapus={editItem ? () => setDeleteItem(editItem) : undefined}
         onTambahKategori={tambahKat}

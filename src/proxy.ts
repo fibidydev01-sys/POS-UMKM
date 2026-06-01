@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const PUBLIC_PATHS = ["/aktivasi", "/api/aktivasi"];
+// /api/payment/webhook/* publik (PG tidak bawa cookie umkm). create/status/credentials
+// TETAP di belakang cookie umkm_id (tidak dimasukkan ke daftar ini).
+const PUBLIC_PATHS = ["/aktivasi", "/api/aktivasi", "/api/payment/webhook"];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

@@ -10,6 +10,7 @@
 #    ./collect-file.sh --module menu
 #    ./collect-file.sh --module riwayat
 #    ./collect-file.sh --module pengaturan
+#    ./collect-file.sh --module payment
 #    ./collect-file.sh --module all
 # ============================================================
 
@@ -48,9 +49,10 @@ if [[ -z "$MODULE" ]]; then
   echo "│  5  │  menu                          │"
   echo "│  6  │  riwayat                       │"
   echo "│  7  │  pengaturan                    │"
+  echo "│  8  │  payment     (QRIS / V3)       │"
   echo "└─────┴───────────────────────────────┘"
   echo ""
-  read -rp "  Pilih [0-7]: " PICK
+  read -rp "  Pilih [0-8]: " PICK
 
   case "$PICK" in
     0) MODULE="all"        ;;
@@ -61,6 +63,7 @@ if [[ -z "$MODULE" ]]; then
     5) MODULE="menu"       ;;
     6) MODULE="riwayat"    ;;
     7) MODULE="pengaturan" ;;
+    8) MODULE="payment"    ;;
     *)
       echo ""
       echo "❌  Pilihan tidak valid: '$PICK'"
@@ -71,7 +74,7 @@ if [[ -z "$MODULE" ]]; then
 fi
 
 # ── Validate module ───────────────────────────────────────────
-VALID_MODULES="root aktivasi dashboard kasir menu riwayat pengaturan all"
+VALID_MODULES="root aktivasi dashboard kasir menu riwayat pengaturan payment all"
 if ! echo "$VALID_MODULES" | grep -qw "$MODULE"; then
   echo "❌  Module tidak dikenal: '$MODULE'"
   echo "    Pilihan: $VALID_MODULES"
@@ -121,6 +124,7 @@ SCOPE[kasir]="
   src/app/kasir
   src/components/kasir
   src/hooks/use-kasir-data.ts
+  src/hooks/use-payment-session.ts
   src/lib/cart
   src/store/cart-store.ts
   src/lib/db/transaksi.ts
@@ -150,6 +154,36 @@ SCOPE[pengaturan]="
   src/lib/export
 "
 
+SCOPE[payment]="
+  src/lib/payment/types.ts
+  src/lib/payment/crypto.ts
+  src/lib/payment/xendit.ts
+  src/lib/payment/midtrans.ts
+  src/lib/payment/doku.ts
+  src/lib/payment/registry.ts
+  src/lib/db/pg-credentials.ts
+  src/lib/db/payment-session.ts
+  src/app/api/payment/create/route.ts
+  src/app/api/payment/status/route.ts
+  src/app/api/payment/webhook/[provider]/route.ts
+  src/app/api/payment/credentials/route.ts
+  src/app/api/payment/credentials/test/route.ts
+  src/hooks/use-payment-session.ts
+  src/components/kasir/qris-dialog.tsx
+  src/components/pengaturan/pg-setup-view.tsx
+  src/app/pengaturan/pembayaran/page.tsx
+  migrations/001_v3_payment.sql
+  src/lib/config/features.ts
+  src/proxy.ts
+  src/lib/db/transaksi.ts
+  src/hooks/use-kasir-data.ts
+  src/components/kasir/kasir-view.tsx
+  src/components/kasir/cart-panel.tsx
+  src/components/kasir/payment-method.tsx
+  src/components/kasir/cart-summary.tsx
+  src/components/pengaturan/pengaturan-view.tsx
+"
+
 SCOPE[all]="
   src/app
   src/components
@@ -157,6 +191,7 @@ SCOPE[all]="
   src/lib
   src/store
   src/proxy.ts
+  migrations
 "
 
 # ── Helpers ───────────────────────────────────────────────────

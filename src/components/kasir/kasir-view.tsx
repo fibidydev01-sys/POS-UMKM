@@ -9,6 +9,8 @@ import { useKasirData, useCart, useBayar } from "@/hooks/use-kasir-data";
 import { useCartStore } from "@/store/cart-store";
 import type { MenuItem } from "@/lib/db/menu";
 import type { HasilTransaksi } from "@/lib/db/transaksi";
+import { features } from "@/lib/config/features";
+import { usePaymentSession } from "@/hooks/use-payment-session";
 
 import { PageSkeleton } from "@/components/shared/page-skeleton";
 import { Button } from "@/components/ui/button";
@@ -25,11 +27,12 @@ import { LayoutToggle } from "./layout-toggle";
 import { KategoriList } from "@/components/menu/kategori-list";
 import { CartPanel } from "./cart-panel";
 import { StrukDialog } from "./struk-dialog";
+import { QrisDialog } from "./qris-dialog";
 import { formatRupiah } from "@/lib/utils/currency";
 
 export function KasirView() {
   const router = useRouter();
-  const { data, isLoading } = useKasirData();
+  const { data, isLoading, pgReady } = useKasirData();
 
   const [katAktif, setKatAktif] = React.useState<string | null>(null);
   const [layout, setLayout] = React.useState<MenuLayout>("list");
@@ -40,6 +43,7 @@ export function KasirView() {
   const items = useCartStore((s) => s.items);
   const tambah = useCartStore((s) => s.tambah);
   const ubahQty = useCartStore((s) => s.ubahQty);
+  const resetCart = useCartStore((s) => s.reset);
   const diskonPresetId = useCartStore((s) => s.diskonPresetId);
   const diskonPersen = useCartStore((s) => s.diskonPersen);
   const setDiskon = useCartStore((s) => s.setDiskon);
@@ -52,6 +56,10 @@ export function KasirView() {
   const { cart, grandTotal } = useCart(promoRules);
   const { bayar, saving } = useBayar(cart, grandTotal);
 
+  // V3 — sesi QRIS (hanya dipakai bila build v3 & PG aktif).
+  const pay = usePaymentSession();
+  const [qrisOpen, setQrisOpen] = React.useState(false);
+
   const totalItem = items.reduce((s, c) => s + c.qty, 0);
 
   const qtyMap = React.useMemo(() => {
@@ -59,6 +67,19 @@ export function KasirView() {
     for (const c of items) if (c.menu_item_id) map[c.menu_item_id] = c.qty;
     return map;
   }, [items]);
+
+  // QRIS sukses (dikonfirmasi webhook → polling) → tampil struk, reset, seperti cash.
+  const payReset = pay.reset;
+  React.useEffect(() => {
+    if (pay.state === "paid" && pay.struk) {
+      setStruk(pay.struk);
+      setQrisOpen(false);
+      setKeranjangOpen(false);
+      resetCart();
+      toast.success(`Transaksi #${pay.struk.trx.nomor_order} tersimpan`);
+      payReset();
+    }
+  }, [pay.state, pay.struk, resetCart, payReset]);
 
   if (isLoading || !data) return <PageSkeleton variant="kasir" />;
 
@@ -69,6 +90,18 @@ export function KasirView() {
     tambah({ id: item.id, nama: item.nama, harga: item.harga });
 
   async function handleBayar() {
+    // R1 — jalur QRIS-via-PG: buat QR otomatis, transaksi dibuat di webhook (R8).
+    if (features.qrisPayment && pgReady && paymentMethod === "qris") {
+      setQrisOpen(true);
+      await pay.create({
+        cart,
+        diskonPresetId,
+        diskonPersen,
+        label: config?.nama_umkm || "POS UMKM",
+      });
+      return;
+    }
+    // Jalur lama (cash / manual) — tidak berubah.
     const res = await bayar();
     if (res.ok && res.struk) {
       setStruk(res.struk);
@@ -148,10 +181,27 @@ export function KasirView() {
         uangDiterima={uangDiterima}
         onUangDiterimaChange={setUangDiterima}
         onBayar={handleBayar}
-        saving={saving}
+        saving={saving || pay.state === "creating"}
+        qrisPgReady={pgReady}
       />
 
       <StrukDialog struk={struk} config={config} onClose={() => setStruk(null)} />
+
+      <QrisDialog
+        open={qrisOpen}
+        onOpenChange={(o) => {
+          setQrisOpen(o);
+          if (!o) pay.reset();
+        }}
+        state={pay.state}
+        qrString={pay.qrString}
+        qrUrl={pay.qrUrl}
+        secondsLeft={pay.secondsLeft}
+        error={pay.error}
+        amount={grandTotal}
+        label={config?.nama_umkm || undefined}
+        onRegenerate={pay.regenerate}
+      />
     </main>
   );
 }

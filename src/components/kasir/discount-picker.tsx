@@ -2,8 +2,7 @@
 
 import * as React from "react";
 import type { DiskonPreset } from "@/lib/db/diskon-preset";
-import { ChevronRight, Tag, Check, X } from "lucide-react";
-import { formatRupiah } from "@/lib/utils/currency";
+import { ChevronRight, Tag, Check } from "lucide-react";
 import {
   Drawer,
   DrawerContent,
@@ -20,12 +19,10 @@ import { cn } from "@/lib/utils";
 export function DiscountPicker({
   presets,
   selectedId,
-  selectedPersen,
   onChange,
 }: {
   presets: DiskonPreset[];
   selectedId: string | null;
-  selectedPersen: number;
   onChange: (presetId: string | null, persen: number) => void;
 }) {
   const [open, setOpen] = React.useState(false);

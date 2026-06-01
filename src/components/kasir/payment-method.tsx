@@ -21,12 +21,15 @@ export function PaymentMethodPicker({
   uangDiterima,
   onUangChange,
   grandTotal,
+  autoQris = false,
 }: {
   method: PaymentMethod;
   onMethodChange: (m: PaymentMethod) => void;
   uangDiterima: string;
   onUangChange: (v: string) => void;
   grandTotal: number;
+  /** V3: true bila QRIS lewat PG aktif → QR dibuat otomatis saat tekan Bayar. */
+  autoQris?: boolean;
 }) {
   const uangNum = parseRupiah(uangDiterima);
   const isCash = method === "cash";
@@ -82,7 +85,9 @@ export function PaymentMethodPicker({
         <div className="mt-1 rounded-lg bg-secondary/60 px-3 py-2.5">
           <p className="text-xs text-muted-foreground">
             {method === "qris"
-              ? "Tunjukkan QR ke pelanggan. Konfirmasi setelah pembayaran berhasil."
+              ? autoQris
+                ? "QR QRIS dibuat otomatis saat menekan Bayar. Pelanggan tinggal scan."
+                : "Tunjukkan QR ke pelanggan. Konfirmasi setelah pembayaran berhasil."
               : `Konfirmasi setelah dana ${PAYMENT_LABELS[method]} masuk / disetujui.`}
           </p>
         </div>

@@ -1,110 +1,115 @@
-# POS UMKM — MVP Web (Next.js 16 + Supabase)
+# POS UMKM — V3 Payment (QRIS) · Drop-in Bundle
 
-Kasir online sederhana untuk UMKM Indonesia. Versi web untuk **validasi & iterasi cepat** sebelum build versi React Native offline. KISS — tanpa login, tanpa RLS, identitas via **kode aktivasi → cookie `umkm_id`**.
+Connector QRIS multi–payment-gateway (**Xendit · Midtrans · DOKU**) dengan adapter
+pattern. App = connector, **bukan** merchant: tiap tenant colok kredensial PG **milik
+mereka sendiri**. **QRIS only** (R1). Cash flow **tidak berubah**.
 
-Tema **Warung Modern** (terracotta + teal di atas krem), mobile-first, dengan cetak struk via `window.print()`.
+Semua file di bundle ini adalah **versi utuh** dari source-mu (file baru + file lama yang
+sudah ku-edit) — tinggal **copy `src/` menimpa `src/` proyekmu**. Tidak ada lagi patch
+manual. Lihat `CHANGES.md` untuk daftar persis apa yang berubah di tiap file lama.
 
----
-
-## ✨ Fitur
-
-- **Aktivasi** — onboarding 2 langkah (kode → profil usaha). Tanpa password.
-- **Kasir** — grid menu, keranjang, qty +/-, diskon transaksi (preset/kustom), cetak struk thermal 58mm.
-- **Menu** — CRUD kategori & produk, toggle ketersediaan, filter kategori.
-- **Riwayat** — daftar transaksi per tanggal, detail + cetak ulang + hapus.
-- **Dashboard** — omzet hari ini / minggu / bulan, grafik 7 hari, produk terlaris, analisa diskon.
-- **Pengaturan** — profil usaha, **Export/Import Excel** (backup & restore), info, keluar perangkat.
+Adapter PG sudah ku-cocokkan dengan **dokumentasi resmi terkini** (Xendit QR Codes v2,
+Midtrans Core API charge QRIS, DOKU SNAP QRIS MPM).
 
 ---
 
-## 🚀 Menjalankan
+## Pasang (urut)
 
-> Project ini sudah lengkap. Setelah `create-next-app` + `shadcn init` Anda (opsional — komponen UI sudah disertakan), cukup:
+1. **Dependency QR**
+   ```bash
+   npm i qrcode.react
+   ```
 
-```bash
-# 1) Salin env, lalu isi kredensial Supabase Anda
-cp .env.local.example .env.local
+2. **Environment** (`.env`)
+   ```bash
+   NEXT_PUBLIC_POS_VERSION=v3                 # v3 = superset v2 + QRIS
+   PG_ENCRYPTION_KEY=<base64 32 byte acak>    # SERVER ONLY — jangan NEXT_PUBLIC_
+   #   generate: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+   # (sudah ada) NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY
+   ```
 
-# 2) Install dependencies
-pnpm install
+3. **Migrasi DB** — jalankan `migrations/001_v3_payment.sql` di Supabase SQL editor.
 
-# 3) Jalankan
-pnpm dev
-```
+4. **Copy file** — salin seluruh `src/` bundle ke `src/` proyek (timpa file lama).
 
-Buka `http://localhost:3000`.
+5. **Webhook URL** — daftarkan di dashboard PG tiap tenant (per provider):
+   ```
+   https://<domain-app>/api/payment/webhook/xendit
+   https://<domain-app>/api/payment/webhook/midtrans
+   https://<domain-app>/api/payment/webhook/doku
+   ```
 
-### Setup Supabase
-
-1. Buat project di [supabase.com](https://supabase.com) (free tier cukup).
-2. Buka **SQL Editor** → tempel & jalankan seluruh isi [`supabase-schema.sql`](./supabase-schema.sql). Ini membuat semua tabel, index, dan 3 kode test.
-3. **Settings → API** → salin `Project URL` dan `anon public key` ke `.env.local`:
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-```
-
-### Kode aktivasi
-
-Sudah ada 3 kode test dari schema: `UMKM-MAMTA-01`, `UMKM-PILOT-02`, `UMKM-TEST-03`.
-
-Tambah kode baru via SQL Editor:
-
-```sql
-INSERT INTO aktivasi_kode (kode) VALUES ('UMKM-MAMTA-01');
-```
-
-Reset perangkat (agar kode bisa dipakai ulang):
-
-```sql
-UPDATE aktivasi_kode 
-SET used = FALSE, 
-    umkm_id = NULL, 
-    activated_at = NULL,
-    version_access = 'v1'   -- tambah ini
-WHERE kode = 'UMKM-MAMTA-01';
-```
+6. **Setup di app** — `Pengaturan → Pembayaran QRIS → Setup Gateway`: pilih provider,
+   isi key, **Test Connection**, **Simpan & Aktifkan**. Mulai dari `mode = sandbox`.
 
 ---
 
-## ☁️ Deploy ke Vercel
+## Yang ada di bundle
 
-1. Push repo ke GitHub.
-2. Import di [vercel.com](https://vercel.com).
-3. Tambahkan 2 environment variables (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`).
-4. Deploy. Bagikan link + kode aktivasi ke UMKM pilot via WhatsApp.
-
----
-
-## 🧱 Catatan Teknis
-
-- **Next.js 16** → gating aktivasi pakai **`src/proxy.ts`** (pengganti `middleware.ts`; fungsi diberi nama `proxy`).
-- **Tanpa Supabase Auth** → query di-scope manual dengan `.eq('umkm_id', ...)` di setiap pemanggilan. Cookie `umkm_id` sengaja **bukan httpOnly** agar bisa dibaca client untuk scoping (ini penanda tenant, bukan kredensial rahasia). Tambahkan RLS nanti setelah tervalidasi.
-- **Komponen UI** di `src/components/ui/` adalah **primitive ringan** (Tailwind + React, tanpa Radix) dengan API ala shadcn — agar `pnpm install` minim dependensi dan ZIP self-contained. Anda bebas menggantinya dengan komponen shadcn resmi (`pnpm dlx shadcn@latest add ...`) kapan saja.
-- **Tailwind v4** — konfigurasi berbasis CSS di `src/app/globals.css` (`@import "tailwindcss"` + `@theme inline`). Tidak ada `tailwind.config.ts`.
-- **Uang = Integer Rupiah** (tanpa desimal). Lihat `src/lib/utils/currency.ts`.
-- **Snapshot harga** — `transaction_items` menyimpan nama & harga saat transaksi. Laporan historis **tidak pernah** JOIN ke `menu_item`.
-- **Nomor order reset harian** per UMKM. **Zona waktu Asia/Jakarta** di seluruh perhitungan (`src/lib/utils/date.ts`).
-- **Cetak struk** — hanya elemen `#area-struk` yang tampil saat print (CSS `@media print` di `globals.css`).
-- **Backup Excel** — Sheet `Laporan` (untuk dibaca) + Sheet `BACKUP_DATA` (untuk restore; jangan diedit manual).
-
----
-
-## 📂 Struktur Singkat
-
+### File BARU
 ```
-src/
-├── app/            # Halaman (kasir, menu, riwayat, dashboard, pengaturan, aktivasi) + api/aktivasi
-├── components/     # ui/ (primitive), kasir/, menu/, dashboard/, shared/
-├── lib/
-│   ├── supabase/   # client & server
-│   ├── db/         # query: menu, transaksi, config
-│   ├── export/     # excel (export) & import
-│   └── utils/      # currency, date, umkm-id, cn
-└── proxy.ts        # gating aktivasi (Next.js 16)
+src/lib/payment/types.ts                          kontrak PGAdapter + tipe
+src/lib/payment/crypto.ts                          AES-256-GCM (server-only)
+src/lib/payment/xendit.ts                          adapter Xendit (QR Codes v2)
+src/lib/payment/midtrans.ts                        adapter Midtrans (Core API charge)
+src/lib/payment/doku.ts                            adapter DOKU (SNAP QRIS MPM)
+src/lib/payment/registry.ts                        provider → adapter + peek webhook
+src/lib/db/pg-credentials.ts                       vault credentials (enkripsi, server-only)
+src/lib/db/payment-session.ts                      CRUD session + snapshot cart + kasir_id
+src/app/api/payment/create/route.ts                buat QR (idempotent R6, amount==grand_total)
+src/app/api/payment/status/route.ts                polling status + struk (R7)
+src/app/api/payment/webhook/[provider]/route.ts    verify (R5) + buat transaksi (R8)
+src/app/api/payment/credentials/route.ts           list (tanpa key) + simpan
+src/app/api/payment/credentials/test/route.ts      test connection
+src/hooks/use-payment-session.ts                   state machine + polling + countdown
+src/components/kasir/qris-dialog.tsx               drawer QR + countdown + regenerate
+src/components/pengaturan/pg-setup-view.tsx        form setup PG
+src/app/pengaturan/pembayaran/page.tsx             halaman setup (gated v3)
+migrations/001_v3_payment.sql                      tabel + RLS + idempotency index
 ```
 
+### File LAMA yang DIEDIT (utuh — timpa langsung)
+```
+src/lib/config/features.ts                  tier v1/v2/v3 + qrisPayment/pgConnector
+src/proxy.ts                                + /api/payment/webhook ke PUBLIC_PATHS
+src/lib/db/transaksi.ts                     + buildTransaksiPayload(); simpanTransaksi pakai builder
+src/hooks/use-kasir-data.ts                 + pgReady (deteksi PG aktif)
+src/components/kasir/kasir-view.tsx         orkestrasi QrisDialog + cabang handleBayar
+src/components/kasir/cart-panel.tsx         threading qrisPgReady → autoQris
+src/components/kasir/payment-method.tsx     hint metode QRIS
+src/components/kasir/cart-summary.tsx       label tombol "Bayar via QRIS"
+src/components/pengaturan/pengaturan-view.tsx  NavLink "Setup Gateway QRIS" (gated v3)
+```
+
+> `src/store/cart-store.ts` **tidak diubah** (sesi QRIS hidup di hook). Tidak disertakan.
+
 ---
 
-*MVP ini alat validasi, bukan produk final. Ship fast, learn real.*
+## Catatan penting
+
+- **Xendit & Midtrans: siap produksi** (inline QR, cukup 1 key; webhook diverifikasi —
+  Xendit `x-callback-token`, Midtrans `signature_key` SHA512). Tetap uji sandbox dulu.
+
+- **DOKU butuh perhatian khusus.** QR inline DOKU hanya dari **SNAP "QRIS MPM Generate"**,
+  yang perlu **TIGA rahasia**: Client-Id, Client Secret, dan **RSA private key** (untuk B2B
+  token). Di form: `API Key = ClientId:ClientSecret`, `RSA Private Key = base64(PEM)`.
+  Mekanika signature sudah sesuai docs (token RSA-SHA256 asimetris; generate & notif
+  HMAC-SHA512 simetris), tapi **path endpoint / CHANNEL-ID / merchantId / format minify**
+  WAJIB diverifikasi di sandbox DOKU akunmu — ditandai komentar `VERIFIKASI` di `doku.ts`.
+  (DOKU Checkout sengaja TIDAK dipakai karena mengembalikan halaman redirect → langgar R1.)
+
+- **Konsistensi nominal:** `create/route.ts` menghitung amount QR pakai
+  `buildTransaksiPayload` yang SAMA dengan saat webhook insert transaksi → **nominal yang
+  ditagih == `grand_total` tercatat** (tidak ada selisih pembulatan; trigger
+  `check_grand_total` aman).
+
+- **R8 (transaksi pasca-bayar):** transaksi dibuat **di webhook** dari `cart_snapshot`
+  (browser kasir boleh ketutup), idempoten (insert → klaim `transaksi_id`; pemenang race
+  yang simpan, yang kalah dihapus). `nomor_order` digenerate saat paid → sequence rapat.
+
+- **Phase 0 / S1 (prasyarat keamanan):** untuk R3 penuh, pindahkan juga write
+  `transaksi`/`transaction_items` ke service-role + RLS dan cabut grant anon. Di luar
+  bundle ini (ada contoh di akhir `001_v3_payment.sql`), tapi **wajib sebelum produksi**.
+
+- **Dua flip beda:** `NEXT_PUBLIC_POS_VERSION` (fitur, env) vs `pg_credentials.mode`
+  (sandbox/production, per-tenant DB). Jangan ketukar.

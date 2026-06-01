@@ -13,6 +13,7 @@ export function CartSummary({
   saving,
   showPayment,
   isNonCash,
+  autoQris = false,
   onBayar,
 }: {
   subtotal: number;
@@ -24,8 +25,18 @@ export function CartSummary({
   saving: boolean;
   showPayment: boolean;
   isNonCash: boolean;
+  /** V3: true bila jalur QRIS-via-PG aktif → label tombol "Bayar via QRIS". */
+  autoQris?: boolean;
   onBayar: () => void;
 }) {
+  const label = saving
+    ? "Memproses..."
+    : autoQris
+      ? `Bayar via QRIS · ${formatRupiah(grandTotal)}`
+      : showPayment && isNonCash
+        ? `Konfirmasi Bayar · ${formatRupiah(grandTotal)}`
+        : `Bayar · ${formatRupiah(grandTotal)}`;
+
   return (
     <div>
       <div className="mb-1 flex justify-between text-sm text-muted-foreground">
@@ -49,11 +60,7 @@ export function CartSummary({
         <span className="text-2xl font-extrabold text-primary">{formatRupiah(grandTotal)}</span>
       </div>
       <Button size="lg" className="w-full" onClick={onBayar} disabled={!canBayar}>
-        {saving
-          ? "Memproses..."
-          : showPayment && isNonCash
-            ? `Konfirmasi Bayar · ${formatRupiah(grandTotal)}`
-            : `Bayar · ${formatRupiah(grandTotal)}`}
+        {label}
       </Button>
     </div>
   );

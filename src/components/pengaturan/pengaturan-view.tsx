@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Download, Upload, Save, Tag, ChevronRight, Gift } from "lucide-react";
+import { Download, Upload, Save, Tag, ChevronRight, Gift, QrCode } from "lucide-react";
 
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { getConfig, updateProfil, type UmkmConfig } from "@/lib/db/config";
@@ -173,11 +173,27 @@ export function PengaturanView() {
         </Card>
       )}
 
+      {features.pgConnector && (
+        <Card className="mb-4">
+          <CardHeader><CardTitle className="text-base">Pembayaran QRIS</CardTitle></CardHeader>
+          <CardContent>
+            <p className="mb-3 text-sm text-muted-foreground">
+              Hubungkan Payment Gateway (Xendit / Midtrans / DOKU) milik Anda untuk terima QRIS.
+            </p>
+            <NavLink href="/pengaturan/pembayaran" icon={<QrCode className="h-5 w-5 text-primary" />} label="Setup Gateway QRIS" />
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="mb-4">
         <CardHeader><CardTitle className="text-base">Backup &amp; Restore</CardTitle></CardHeader>
         <CardContent className="flex flex-col gap-3">
           <p className="text-sm text-muted-foreground">Unduh data transaksi sebagai Excel.</p>
-          <Button variant="accent" onClick={ekspor} disabled={busy}>
+          <Button
+            className="bg-accent text-accent-foreground hover:bg-accent/90"
+            onClick={ekspor}
+            disabled={busy}
+          >
             <Download className="h-4 w-4" /> {busy ? "Memproses..." : "Export Excel"}
           </Button>
           <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={busy}>

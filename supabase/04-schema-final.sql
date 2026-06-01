@@ -1,15 +1,27 @@
 -- ============================================================
--- POS UMKM — Schema Final (Owner-Only + BOGO)
--- Versi  : V1 + V2 — FINAL
+-- POS UMKM — SCHEMA FINAL (SUDAH DI-FIX)
+-- Versi  : V1 + V2 — FINAL (audit 2026-06-01)
 -- Target : Supabase (PostgreSQL)
 -- ============================================================
+-- RINGKASAN PERUBAHAN vs schema_final lama (4 fix utama):
+--   [FIX B3] transaction_items.transaksi_id            -> ON DELETE CASCADE
+--   [FIX B3] transaction_items.triggered_by_item_id    -> ON DELETE CASCADE
+--   [FIX B2] trg_validate_triggered_by_same_transaction -> CONSTRAINT TRIGGER
+--            AFTER INSERT, DEFERRABLE INITIALLY DEFERRED (lihat STEP 11)
+--   [FIX S1] RLS dimatikan EKSPLISIT + GRANT jelas + WARNING + jalur hardening
+-- Sisanya dipertahankan: ENUM, semua tabel, check grand_total (deferred),
+-- generator nomor order (Jakarta), indexes, seed kode aktivasi v1 & v2.
+-- ============================================================
 -- CARA RUN:
---   1. Drop semua tabel lama terlebih dahulu (lihat CLEAN SLATE di bawah)
---   2. Supabase Dashboard → SQL Editor → paste → Run
+--   1. (Opsional) jalankan blok CLEAN SLATE di bawah jika skema lama ada.
+--   2. Supabase Dashboard -> SQL Editor -> paste seluruh file -> Run.
+--   3. Lanjut ke 05-CHECKLIST-EDIT-KODE.md untuk edit sisi aplikasi.
 -- ============================================================
 
+
 -- ============================================================
--- OPTIONAL CLEAN SLATE (jalankan dulu jika schema lama ada)
+-- OPTIONAL CLEAN SLATE (hapus skema lama lebih dulu jika perlu)
+-- Hapus tanda komentar (--) pada blok ini untuk mereset total.
 -- ============================================================
 -- DROP TABLE IF EXISTS transaction_items CASCADE;
 -- DROP TABLE IF EXISTS transaksi CASCADE;
@@ -20,11 +32,12 @@
 -- DROP TABLE IF EXISTS umkm_config CASCADE;
 -- DROP TABLE IF EXISTS users CASCADE;
 -- DROP TABLE IF EXISTS aktivasi_kode CASCADE;
--- DROP TYPE IF EXISTS item_type_enum CASCADE;
--- DROP TYPE IF EXISTS transaksi_status_enum CASCADE;
--- DROP TYPE IF EXISTS tipe_promo_enum CASCADE;
--- DROP TYPE IF EXISTS payment_method_enum CASCADE;
--- DROP TYPE IF EXISTS role_enum CASCADE;
+-- DROP TYPE  IF EXISTS item_type_enum CASCADE;
+-- DROP TYPE  IF EXISTS transaksi_status_enum CASCADE;
+-- DROP TYPE  IF EXISTS tipe_promo_enum CASCADE;
+-- DROP TYPE  IF EXISTS payment_method_enum CASCADE;
+-- DROP TYPE  IF EXISTS role_enum CASCADE;
+
 
 -- ============================================================
 -- STEP 0: ENUM TYPES
@@ -50,6 +63,7 @@ DO $$ BEGIN
     CREATE TYPE role_enum             AS ENUM ('owner', 'kasir', 'system');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
+
 -- ============================================================
 -- STEP 1: AKTIVASI KODE
 -- ============================================================
@@ -64,9 +78,10 @@ CREATE TABLE IF NOT EXISTS aktivasi_kode (
     activated_at   TIMESTAMPTZ DEFAULT NULL
 );
 
+
 -- ============================================================
--- STEP 2: UMKM CONFIG
--- NOTE: paper_width TIDAK ada di Supabase — disimpan di localStorage browser.
+-- STEP 2: UMKM CONFIG (profil usaha)
+-- NOTE: paper_width TIDAK ada di sini -> disimpan di localStorage browser.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS umkm_config (
@@ -81,9 +96,10 @@ CREATE TABLE IF NOT EXISTS umkm_config (
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+
 -- ============================================================
--- STEP 3: USERS
--- Owner-only. Satu row per UMKM. UUID disimpan di cookie owner_id.
+-- STEP 3: USERS (owner-only, satu row per UMKM)
+-- UUID owner disimpan di cookie owner_id.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS users (
@@ -96,6 +112,7 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (umkm_id, username)
 );
+
 
 -- ============================================================
 -- STEP 4: KATEGORI
@@ -110,9 +127,10 @@ CREATE TABLE IF NOT EXISTS kategori (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+
 -- ============================================================
 -- STEP 5: MENU ITEM
--- TIDAK PERNAH hard delete — is_active = FALSE untuk soft delete.
+-- TIDAK PERNAH hard delete dari app -> is_active = FALSE (soft delete).
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS menu_item (
@@ -129,6 +147,7 @@ CREATE TABLE IF NOT EXISTS menu_item (
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+
 -- ============================================================
 -- STEP 6: DISKON PRESET
 -- ============================================================
@@ -144,9 +163,10 @@ CREATE TABLE IF NOT EXISTS diskon_preset (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+
 -- ============================================================
 -- STEP 7: PROMO RULE
--- FIX: CHECK (qty_gratis <= qty_beli) — bukan < agar BOGO (1,1) valid.
+-- CHECK (qty_gratis <= qty_beli) supaya BOGO (1,1) valid.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS promo_rule (
@@ -168,15 +188,15 @@ CREATE TABLE IF NOT EXISTS promo_rule (
     UNIQUE (umkm_id, menu_item_id, tipe_promo)
 );
 
+
 -- ============================================================
 -- STEP 8: TRANSAKSI (header)
 -- PERHATIAN: TIDAK ADA kolom diskon_persen di sini.
--- Informasi diskon tersimpan di transaction_items (per item).
+-- Info diskon tersimpan di transaction_items (per item).
 --
--- Schema check untuk cash: uang_diterima wajib >= grand_total,
+-- Aturan cash: uang_diterima wajib >= grand_total,
 -- kembalian wajib = uang_diterima - grand_total.
--- Untuk V1 (tanpa fitur payment), app otomatis set
--- uang_diterima = grand_total dan kembalian = 0.
+-- V1 (tanpa fitur payment): app set uang_diterima = grand_total, kembalian = 0.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS transaksi (
@@ -188,7 +208,6 @@ CREATE TABLE IF NOT EXISTS transaksi (
     payment_method   payment_method_enum NOT NULL,
     grand_total      NUMERIC(12,2) NOT NULL CHECK (grand_total >= 0),
 
-    -- Cash: wajib isi uang_diterima dan kembalian
     uang_diterima    NUMERIC(12,2),
     kembalian        NUMERIC(12,2),
 
@@ -200,7 +219,7 @@ CREATE TABLE IF NOT EXISTS transaksi (
 
     UNIQUE (umkm_id, nomor_order),
 
-    -- Cash check: uang_diterima dan kembalian wajib ada dan konsisten
+    -- Cash: uang_diterima & kembalian wajib ada dan konsisten
     CHECK (
         payment_method <> 'cash'
         OR (
@@ -211,7 +230,7 @@ CREATE TABLE IF NOT EXISTS transaksi (
         )
     ),
 
-    -- Non-cash: uang_diterima dan kembalian harus NULL
+    -- Non-cash: uang_diterima & kembalian harus NULL
     CHECK (
         payment_method = 'cash'
         OR (uang_diterima IS NULL AND kembalian IS NULL)
@@ -225,15 +244,21 @@ CREATE TABLE IF NOT EXISTS transaksi (
     )
 );
 
+
 -- ============================================================
--- STEP 9: TRANSACTION ITEMS
--- SNAPSHOT PERMANEN — immutable setelah INSERT.
--- FIX: discounted item tidak wajib preset_id (V1 ENV mode ok).
+-- STEP 9: TRANSACTION ITEMS (snapshot permanen, immutable)
+--
+-- [FIX B3] transaksi_id          : ON DELETE CASCADE
+--          -> import destruktif (DELETE FROM transaksi) kini ikut menghapus
+--             item-nya, tidak lagi gagal karena FK.
+-- [FIX B3] triggered_by_item_id  : ON DELETE CASCADE
+--          -> hapus item pemicu ikut menghapus item gratis turunannya.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS transaction_items (
     id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    transaksi_id         UUID NOT NULL REFERENCES transaksi(id),
+    transaksi_id         UUID NOT NULL
+                         REFERENCES transaksi(id) ON DELETE CASCADE,          -- [FIX B3]
     menu_item_id         UUID REFERENCES menu_item(id),
     umkm_id              UUID NOT NULL,
 
@@ -245,7 +270,8 @@ CREATE TABLE IF NOT EXISTS transaction_items (
     diskon_persen        NUMERIC(5,2) NOT NULL DEFAULT 0
                          CHECK (diskon_persen >= 0 AND diskon_persen < 100),
     diskon_preset_id     UUID REFERENCES diskon_preset(id),
-    triggered_by_item_id UUID REFERENCES transaction_items(id),
+    triggered_by_item_id UUID
+                         REFERENCES transaction_items(id) ON DELETE CASCADE,  -- [FIX B3]
     final_price_item     NUMERIC(12,2) NOT NULL CHECK (final_price_item >= 0),
 
     -- normal: tidak boleh ada diskon atau triggered_by
@@ -275,8 +301,13 @@ CREATE TABLE IF NOT EXISTS transaction_items (
     )
 );
 
+
 -- ============================================================
 -- STEP 10: TRIGGER — grand_total == SUM(final_price_item)
+-- CONSTRAINT TRIGGER DEFERRED: dicek saat COMMIT, bukan per-baris.
+-- Penting: app HARUS insert header + semua item dalam SATU transaksi DB
+-- (batch insert) supaya saat COMMIT jumlahnya sudah cocok. Lihat
+-- 05-CHECKLIST-EDIT-KODE.md item 3 (simpanTransaksi batch).
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION check_grand_total()
@@ -292,6 +323,11 @@ BEGIN
 
     SELECT grand_total INTO expected_total
     FROM transaksi WHERE id = NEW.transaksi_id;
+
+    -- Kalau header sudah terhapus (mis. CASCADE saat import), lewati.
+    IF expected_total IS NULL THEN
+        RETURN NEW;
+    END IF;
 
     IF calculated_total <> expected_total THEN
         RAISE EXCEPTION
@@ -310,8 +346,15 @@ CREATE CONSTRAINT TRIGGER trg_validate_grand_total
     FOR EACH ROW
     EXECUTE FUNCTION check_grand_total();
 
+
 -- ============================================================
 -- STEP 11: TRIGGER — triggered_by_item_id dalam transaksi sama
+--
+-- [FIX B2] Diubah dari BEFORE INSERT biasa menjadi CONSTRAINT TRIGGER
+--          AFTER INSERT DEFERRABLE INITIALLY DEFERRED.
+--          Alasan: dengan batch insert, item pemicu (parent) dan item
+--          gratis (child) masuk dalam satu statement. Pengecekan saat
+--          COMMIT memastikan parent sudah ada -> tidak false-negative.
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION check_triggered_by_same_transaction()
@@ -337,10 +380,12 @@ END;
 $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS trg_validate_triggered_by_same_transaction ON transaction_items;
-CREATE TRIGGER trg_validate_triggered_by_same_transaction
-    BEFORE INSERT ON transaction_items
+CREATE CONSTRAINT TRIGGER trg_validate_triggered_by_same_transaction      -- [FIX B2]
+    AFTER INSERT ON transaction_items
+    DEFERRABLE INITIALLY DEFERRED
     FOR EACH ROW
     EXECUTE FUNCTION check_triggered_by_same_transaction();
+
 
 -- ============================================================
 -- STEP 12: NOMOR ORDER GENERATOR
@@ -373,6 +418,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+
 -- ============================================================
 -- STEP 13: INDEXES
 -- ============================================================
@@ -402,8 +448,9 @@ CREATE INDEX IF NOT EXISTS idx_promo_rule_umkm
 CREATE INDEX IF NOT EXISTS idx_users_umkm_active
     ON users (umkm_id, is_active);
 
+
 -- ============================================================
--- STEP 14: SEED — kode aktivasi
+-- STEP 14: SEED — kode aktivasi (v1 & v2)
 -- Diskon preset default di-seed via /api/aktivasi saat aktivasi.
 -- ============================================================
 
@@ -417,7 +464,67 @@ INSERT INTO aktivasi_kode (kode, version_access) VALUES
     ('UMKM-V2-TEST',  'v2')
 ON CONFLICT (kode) DO NOTHING;
 
+
 -- ============================================================
--- RLS — DISABLED (default PostgreSQL)
--- Isolasi tenant via .eq('umkm_id', ...) di setiap query.
+-- STEP 15: RLS & GRANTS — [FIX S1]
+-- ============================================================
+-- !!! WARNING KEAMANAN — BACA SEBELUM PRODUKSI !!!
+--
+-- Aplikasi ini memakai ANON KEY di sisi browser (lihat
+-- src/lib/supabase/client.ts) dan RLS SENGAJA DIMATIKAN.
+-- Artinya: SATU-SATUNYA pembatas antar-tenant adalah filter
+-- .eq('umkm_id', <uuid dari cookie>) di setiap query aplikasi.
+--
+-- Untuk MVP "owner-only, 1 device" ini DAPAT DITERIMA: tidak ada
+-- pengguna lain yang berbagi DB pada perangkat itu. NAMUN ini
+-- BUKAN hardening — siapa pun yang memegang anon key dan menebak
+-- sebuah umkm_id secara teori bisa membaca data tenant tsb lewat
+-- API publik Supabase.
+--
+-- JALUR HARDENING (lihat 03-ARSITEKTUR.md §4):
+--   Opsi B  : pindahkan akses sensitif ke route handler (app/api/*)
+--             memakai SERVICE ROLE KEY, lalu CABUT grant anon
+--             (REVOKE ... FROM anon) di bawah.
+--   Opsi C  : aktifkan Supabase Auth + RLS penuh, contoh policy:
+--               ALTER TABLE transaksi ENABLE ROW LEVEL SECURITY;
+--               CREATE POLICY tenant_isolation ON transaksi
+--                 USING (umkm_id = (auth.jwt() ->> 'umkm_id')::uuid);
+--             (ulangi untuk tiap tabel ber-umkm_id)
+-- ============================================================
+
+-- Matikan RLS secara EKSPLISIT (default Postgres, ditegaskan di sini).
+ALTER TABLE aktivasi_kode      DISABLE ROW LEVEL SECURITY;
+ALTER TABLE umkm_config        DISABLE ROW LEVEL SECURITY;
+ALTER TABLE users              DISABLE ROW LEVEL SECURITY;
+ALTER TABLE kategori           DISABLE ROW LEVEL SECURITY;
+ALTER TABLE menu_item          DISABLE ROW LEVEL SECURITY;
+ALTER TABLE diskon_preset      DISABLE ROW LEVEL SECURITY;
+ALTER TABLE promo_rule         DISABLE ROW LEVEL SECURITY;
+ALTER TABLE transaksi          DISABLE ROW LEVEL SECURITY;
+ALTER TABLE transaction_items  DISABLE ROW LEVEL SECURITY;
+
+-- GRANT untuk peran Supabase. anon & authenticated dipakai oleh client;
+-- service_role dipakai route handler server (mis. /api/aktivasi).
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES    IN SCHEMA public TO anon, authenticated, service_role;
+GRANT USAGE, SELECT                  ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT EXECUTE                        ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;
+
+-- Default privileges supaya objek baru ikut ter-grant.
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+    GRANT USAGE, SELECT ON SEQUENCES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+    GRANT EXECUTE ON FUNCTIONS TO anon, authenticated, service_role;
+
+-- --- SAAT HARDENING (Opsi B), aktifkan baris berikut untuk MENCABUT anon: ---
+-- REVOKE SELECT, INSERT, UPDATE, DELETE ON ALL TABLES    IN SCHEMA public FROM anon;
+-- REVOKE USAGE, SELECT                  ON ALL SEQUENCES IN SCHEMA public FROM anon;
+-- REVOKE EXECUTE                        ON ALL FUNCTIONS IN SCHEMA public FROM anon;
+-- ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLES FROM anon;
+
+-- ============================================================
+-- SELESAI. Lanjut: 05-CHECKLIST-EDIT-KODE.md
 -- ============================================================

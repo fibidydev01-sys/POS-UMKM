@@ -12,7 +12,7 @@
   --secondary: #f3eee6;
   --secondary-foreground: #1c1917;
   --muted: #f3eee6;
-  --muted-foreground: #78716c;
+  --muted-foreground: #6b6358;
   --accent: #0f766e;
   --accent-foreground: #ffffff;
   --destructive: #dc2626;
@@ -62,6 +62,11 @@ body { background-color: var(--background); color: var(--foreground); font-famil
 @media print {
   body * { visibility: hidden !important; }
   #area-struk, #area-struk * { visibility: visible !important; }
-  #area-struk { position: absolute; left: 0; top: 0; width: 58mm; padding: 0; margin: 0; color: #000; background: #fff; }
+  /* [FIX B5] width DIHAPUS dari sini. Lebar kertas (58mm/80mm) diatur oleh class
+     Tailwind di struk-print.tsx (w-[58mm]/w-[80mm]). Kalau width dipaksa di sini,
+     selector id (#area-struk) menang atas class → 80mm selalu tercetak 58mm. */
+  #area-struk { position: absolute; left: 0; top: 0; padding: 0; margin: 0; color: #000; background: #fff; }
+  /* @page size statis dibiarkan sebagai fallback; struk-print.tsx meng-inject
+     @page dengan ukuran sesuai pilihan (lebih akhir di <head> → menang). */
   @page { margin: 4mm; size: 58mm auto; }
 }

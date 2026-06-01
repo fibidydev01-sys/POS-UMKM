@@ -4,8 +4,12 @@ type Variant = "kasir" | "dashboard" | "list" | "form";
 
 export function PageSkeleton({ variant }: { variant: Variant }) {
   if (variant === "kasir") {
+    // [FIX U1] max-w-2xl menyamai kasir-view (dulu max-w-3xl → konten melompat
+    //          menyempit saat data selesai load).
+    // [FIX U2] lg:grid-cols-4 menyamai MenuGrid (dulu md:grid-cols-4 → di tablet
+    //          kolom lompat 4↔3 saat load). Paling kentara di tablet.
     return (
-      <div className="mx-auto max-w-3xl px-4 pt-5">
+      <div className="mx-auto max-w-2xl px-4 pt-5">
         <Skeleton className="mb-1 h-4 w-16" />
         <Skeleton className="mb-4 h-6 w-40" />
         <div className="mb-3 flex gap-2">
@@ -13,7 +17,7 @@ export function PageSkeleton({ variant }: { variant: Variant }) {
             <Skeleton key={i} className="h-8 w-20 rounded-full" />
           ))}
         </div>
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
           {Array.from({ length: 8 }).map((_, i) => (
             <Skeleton key={i} className="h-28 rounded-xl" />
           ))}

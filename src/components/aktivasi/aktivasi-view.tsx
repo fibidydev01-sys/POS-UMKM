@@ -29,7 +29,16 @@ export function AktivasiView() {
       const res = await fetch("/api/aktivasi", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kode: kode.trim() }) });
       const data = await res.json();
       if (!res.ok || !data.ok) { setError(data.pesan || "Aktivasi gagal."); return; }
-      setUmkmId(data.umkmId); setStep(2);
+
+      // [FIX B1] Seller LAMA yang profilnya sudah lengkap → langsung ke dashboard.
+      // Datanya sudah tersimpan; jangan paksa isi form profil dari kosong lagi.
+      if (data.returning && data.profilLengkap) {
+        router.replace("/dashboard");
+        return;
+      }
+      // Selain itu (aktivasi baru, atau user lama tapi profil belum lengkap) → Step 2.
+      setUmkmId(data.umkmId);
+      setStep(2);
     } catch { setError("Tidak bisa terhubung ke server. Coba lagi."); } finally { setLoading(false); }
   }
 

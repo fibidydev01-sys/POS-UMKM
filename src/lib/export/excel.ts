@@ -9,11 +9,15 @@ import { formatTanggal, formatTanggalJam, formatBulanTahun } from "../utils/date
 
 export const BACKUP_SHEET_NAME = "BACKUP_DATA";
 
+// [FIX B4] triggered_by_item_id ditambahkan di akhir. Tanpa kolom ini, item
+// promo_free saat di-import kehilangan parent → melanggar CHECK
+// (promo_free wajib triggered_by_item_id NOT NULL) → seluruh import gagal.
 export const BACKUP_HEADERS = [
   "transaksi_id", "nomor_order", "created_at", "status", "payment_method",
   "grand_total", "uang_diterima", "kembalian", "kasir_id", "diskon_preset_id",
   "item_id", "menu_item_id", "nama_produk", "harga_satuan", "qty",
   "item_type", "diskon_persen", "diskon_preset_id_item", "final_price_item",
+  "triggered_by_item_id",
 ] as const;
 
 export interface HasilExport { ok: boolean; pesan: string; jumlahBaris?: number; }
@@ -92,6 +96,7 @@ export async function exportDanDownload(umkmId: string, config: UmkmConfig | nul
           t.grand_total, t.uang_diterima ?? "", t.kembalian ?? "", t.kasir_id, t.diskon_preset_id ?? "",
           it.id, it.menu_item_id ?? "", it.nama_produk, it.harga_satuan, it.qty,
           it.item_type, it.diskon_persen, it.diskon_preset_id ?? "", it.final_price_item,
+          it.triggered_by_item_id ?? "",
         ]);
         jumlahBaris++;
       }

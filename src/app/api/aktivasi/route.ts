@@ -13,14 +13,51 @@ export async function POST(request: NextRequest) {
   if (error) return NextResponse.json({ ok: false, pesan: "Gagal menghubungi server." }, { status: 500 });
   if (!row) return NextResponse.json({ ok: false, pesan: "Kode tidak ditemukan." }, { status: 404 });
 
+  // ── Kode sudah pernah dipakai & sudah punya umkm_id → ini SELLER LAMA. ──
   if (row.used && row.umkm_id) {
-    const { data: existingUser } = await supabase.from("users").select("id").eq("umkm_id", row.umkm_id).eq("role", "owner").eq("is_active", true).maybeSingle();
-    const res = NextResponse.json({ ok: true, pesan: "Kode sudah aktif. Masuk kembali.", umkmId: row.umkm_id, ownerId: existingUser?.id ?? null });
+    // [FIX B6] Pastikan owner ADA. Kalau baris owner hilang, re-create —
+    // kalau tidak, ownerId null → cookie owner_id tak terset → getCurrentUser()
+    // null → dashboard redirect ke /aktivasi → loop.
+    let { data: existingUser } = await supabase
+      .from("users").select("id")
+      .eq("umkm_id", row.umkm_id).eq("role", "owner").eq("is_active", true)
+      .maybeSingle();
+
+    if (!existingUser) {
+      const { data: recreated } = await supabase
+        .from("users")
+        .upsert(
+          { umkm_id: row.umkm_id, username: "owner", role: "owner", is_active: true },
+          { onConflict: "umkm_id,username" }
+        )
+        .select("id")
+        .single();
+      existingUser = recreated ?? null;
+    }
+
+    // [FIX B1] Cek apakah profil sudah lengkap. Client pakai flag ini untuk
+    // memutuskan: langsung ke /dashboard (data lama tampil) ATAU isi profil.
+    // Datanya MEMANG sudah tersimpan — yang dulu salah cuma flow UI-nya.
+    const { data: cfg } = await supabase
+      .from("umkm_config").select("nama_umkm")
+      .eq("umkm_id", row.umkm_id).maybeSingle();
+    const profilLengkap = !!(cfg?.nama_umkm && cfg.nama_umkm.trim());
+
+    const res = NextResponse.json({
+      ok: true,
+      returning: true,          // <-- penanda: ini user lama
+      profilLengkap,            // <-- true kalau nama_umkm sudah ada
+      pesan: "Kode sudah aktif. Masuk kembali.",
+      umkmId: row.umkm_id,
+      ownerId: existingUser?.id ?? null,
+    });
     setCookies(res, row.umkm_id, existingUser?.id ?? "");
     return res;
   }
+
   if (row.used && !row.umkm_id) return NextResponse.json({ ok: false, pesan: "Kode sudah dipakai." }, { status: 409 });
 
+  // ── Aktivasi BARU ──
   const umkmId = crypto.randomUUID();
   const nowIso = new Date().toISOString();
   const upd = await supabase.from("aktivasi_kode").update({ used: true, umkm_id: umkmId, activated_at: nowIso }).eq("id", row.id).eq("used", false);
@@ -43,7 +80,7 @@ export async function POST(request: NextRequest) {
     ]);
   }
 
-  const res = NextResponse.json({ ok: true, pesan: "Aktivasi berhasil.", umkmId, ownerId });
+  const res = NextResponse.json({ ok: true, returning: false, profilLengkap: false, pesan: "Aktivasi berhasil.", umkmId, ownerId });
   setCookies(res, umkmId, ownerId);
   return res;
 }

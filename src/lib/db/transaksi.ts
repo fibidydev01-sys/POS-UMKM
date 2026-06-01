@@ -61,6 +61,22 @@ interface PromoCartItem extends CartItem {
   _is_promo_free?: boolean;
 }
 
+// Baris transaction_items siap-INSERT (id digenerate di client).
+interface ItemInsertRow {
+  id: string;
+  transaksi_id: string;
+  umkm_id: string;
+  menu_item_id: string | null;
+  nama_produk: string;
+  harga_satuan: number;
+  qty: number;
+  item_type: "normal" | "discounted" | "promo_free";
+  diskon_persen: number;
+  diskon_preset_id: string | null;
+  triggered_by_item_id: string | null;
+  final_price_item: number;
+}
+
 // Supabase row types untuk query results
 interface TransaksiRow {
   created_at: string;
@@ -103,13 +119,27 @@ export async function generateNomorOrder(umkmId: string): Promise<string> {
 /**
  * Simpan transaksi ke Supabase.
  *
+ * [FIX B2] PENTING — kenapa BATCH INSERT, bukan loop per-item:
+ *   Trigger `check_grand_total` adalah CONSTRAINT TRIGGER DEFERRABLE → dicek
+ *   saat COMMIT. Kalau item di-INSERT satu-satu (tiap call = 1 transaksi DB =
+ *   1 COMMIT), maka saat commit item ke-1, SUM(final_price_item) ≠ grand_total
+ *   → EXCEPTION → transaksi >1 item GAGAL.
+ *   Solusi: generate UUID item di CLIENT, lalu INSERT SEMUA item dalam SATU
+ *   batch (.insert([...])). Satu batch = satu statement = satu COMMIT, jadi saat
+ *   trigger deferred mengecek, semua baris sudah ada → SUM cocok.
+ *   (Wajib jalankan 04-schema-final.sql: trigger triggered_by_item_id juga
+ *    diubah jadi DEFERRABLE agar pairing BOGO valid dalam satu batch.)
+ *
+ * [FIX B8] Rollback bersih: kalau batch item gagal → DELETE header. FK
+ *   transaction_items.transaksi_id ON DELETE CASCADE menyapu item-nya (bukan
+ *   lagi sekadar status=void yang menyisakan sampah).
+ *
  * CATATAN SCHEMA:
  * - Kolom diskon_persen TIDAK ADA di tabel transaksi (hanya di transaction_items).
- * - Untuk cash (V1 tanpa fitur payment): uang_diterima = grand_total, kembalian = 0.
- *   Schema check mensyaratkan cash WAJIB punya uang_diterima >= grand_total.
- * - menu_item_id di transaction_items adalah NULLABLE FK.
- *   Kita validasi dulu ke DB — UUID yang tidak ditemukan di-set null (snapshot nama tetap ada).
- * - Mendukung item_type = 'promo_free' dan triggered_by_item_id (V2 mode).
+ * - Untuk cash: uang_diterima >= grand_total, kembalian = uang_diterima - grand_total.
+ *   V1 (features.payment=false): uang_diterima = grand_total, kembalian = 0.
+ * - menu_item_id NULLABLE FK → UUID stale di-set null (snapshot nama tetap ada).
+ * - Mendukung item_type 'promo_free' + triggered_by_item_id (V2).
  */
 export async function simpanTransaksi(
   umkmId: string,
@@ -121,13 +151,10 @@ export async function simpanTransaksi(
   uangDiterima: number | null
 ): Promise<HasilTransaksi> {
 
-  // Validasi menu_item_id — FK nullable, tapi kita harus pastikan UUID yang dikirim
-  // benar-benar ada di tabel menu_item. UUID stale (item dihapus/tidak ditemukan)
-  // di-set null agar tidak melanggar FK constraint.
+  // 1) Validasi menu_item_id — UUID yang tak ada di DB di-set null (FK aman).
   const allMenuIds = [...new Set(
     cart.map((c) => c.menu_item_id).filter((id): id is string => id !== null)
   )];
-
   const validMenuIds = new Set<string>();
   if (allMenuIds.length > 0) {
     const { data: validRows } = await supabase
@@ -137,50 +164,63 @@ export async function simpanTransaksi(
     for (const row of (validRows ?? [])) validMenuIds.add(row.id);
   }
 
-  // Hitung final_price per item
-  const itemsHitung = cart.map((c) => {
-    // Sanitasi menu_item_id — null jika UUID tidak ditemukan di DB
-    const safeMenuItemId = c.menu_item_id && validMenuIds.has(c.menu_item_id)
-      ? c.menu_item_id
-      : null;
-    // Item promo_free: harga selalu 0, tidak kena diskon header
-    if (c.item_type === "promo_free") {
+  // 2) Siapkan SEMUA item dengan id UUID digenerate di client.
+  //    pairKey memakai ORIGINAL menu_item_id (bukan yang disanitasi) agar
+  //    pasangan beli↔gratis (BOGO) tetap stabil walau UUID-nya stale.
+  const transaksiId = crypto.randomUUID();
+
+  const prepared: { id: string; pairKey: string | null; isPromoFree: boolean; row: ItemInsertRow }[] =
+    cart.map((c) => {
+      const extended = c as PromoCartItem;
+      const originalMenuId = c.menu_item_id;
+      const safeMenuId = originalMenuId && validMenuIds.has(originalMenuId) ? originalMenuId : null;
+      const pairIndex = extended._promo_pair_index ?? null;
+      const pairKey = originalMenuId && pairIndex !== null ? `${originalMenuId}_${pairIndex}` : null;
+      const isPromoFree = c.item_type === "promo_free";
+      const itemId = crypto.randomUUID();
+
+      if (isPromoFree) {
+        return {
+          id: itemId, pairKey, isPromoFree,
+          row: {
+            id: itemId, transaksi_id: transaksiId, umkm_id: umkmId,
+            menu_item_id: safeMenuId, nama_produk: c.nama_produk,
+            harga_satuan: c.harga_satuan, qty: c.qty,
+            item_type: "promo_free", diskon_persen: 0, diskon_preset_id: null,
+            triggered_by_item_id: null, // diisi di step 3
+            final_price_item: 0,
+          },
+        };
+      }
+
+      const hasDiskon = diskonHeaderPersen > 0;
+      const persen = hasDiskon ? diskonHeaderPersen : 0;
+      const final_price_item = Math.round(c.harga_satuan * c.qty * (1 - persen / 100));
+
       return {
-        ...c,
-        menu_item_id: safeMenuItemId,
-        item_type: "promo_free" as const,
-        diskon_persen: 0,
-        diskon_preset_id: null,
-        final_price_item: 0,
+        id: itemId, pairKey, isPromoFree,
+        row: {
+          id: itemId, transaksi_id: transaksiId, umkm_id: umkmId,
+          menu_item_id: safeMenuId, nama_produk: c.nama_produk,
+          harga_satuan: c.harga_satuan, qty: c.qty,
+          item_type: hasDiskon ? "discounted" : "normal",
+          diskon_persen: persen,
+          diskon_preset_id: hasDiskon ? diskonHeaderPresetId : null,
+          triggered_by_item_id: null,
+          final_price_item,
+        },
       };
-    }
+    });
 
-    const hasDiskon = diskonHeaderPersen > 0;
-    const persen = hasDiskon ? diskonHeaderPersen : 0;
-    const final_price_item = Math.round(c.harga_satuan * c.qty * (1 - persen / 100));
-    const item_type: "normal" | "discounted" = hasDiskon ? "discounted" : "normal";
+  // 3) Pasangkan promo_free → id item pemicu (parent) via pairKey.
+  const pairToId = new Map<string, string>();
+  for (const p of prepared) if (!p.isPromoFree && p.pairKey) pairToId.set(p.pairKey, p.id);
+  for (const p of prepared) {
+    if (p.isPromoFree && p.pairKey) p.row.triggered_by_item_id = pairToId.get(p.pairKey) ?? null;
+  }
 
-    return {
-      ...c,
-      menu_item_id: safeMenuItemId,
-      item_type,
-      diskon_persen: persen,
-      diskon_preset_id: hasDiskon ? diskonHeaderPresetId : null,
-      final_price_item,
-    };
-  });
-
-  const grand_total = itemsHitung.reduce((s, i) => s + i.final_price_item, 0);
-  const kembalian =
-    paymentMethod === "cash" && uangDiterima !== null
-      ? uangDiterima - grand_total
-      : null;
-
-  const nomor_order = await generateNomorOrder(umkmId);
-
-  // INSERT header — diskon_persen TIDAK ADA di kolom transaksi (hanya di transaction_items)
-  // Schema check: cash wajib uang_diterima >= grand_total dan kembalian = uang_diterima - grand_total
-  // Untuk V1 (features.payment = false), kita set uang_diterima = grand_total, kembalian = 0
+  // 4) Hitung grand_total & kembalian.
+  const grand_total = prepared.reduce((s, p) => s + p.row.final_price_item, 0);
   const uangFinalForInsert = paymentMethod === "cash"
     ? (uangDiterima !== null && uangDiterima >= grand_total ? uangDiterima : grand_total)
     : null;
@@ -188,9 +228,13 @@ export async function simpanTransaksi(
     ? (uangFinalForInsert! - grand_total)
     : null;
 
+  const nomor_order = await generateNomorOrder(umkmId);
+
+  // 5) INSERT header (pakai id yang sudah kita generate).
   const { data: trxRow, error: e1 } = await supabase
     .from("transaksi")
     .insert({
+      id: transaksiId,
       umkm_id: umkmId,
       nomor_order,
       status: "completed",
@@ -206,57 +250,22 @@ export async function simpanTransaksi(
 
   if (e1 || !trxRow) throw e1 ?? new Error("Gagal menyimpan transaksi");
 
-  // INSERT items — sequential untuk handle triggered_by_item_id
-  const insertedItems: TransactionItem[] = [];
-  const pairToId = new Map<string, string>();
-
-  for (const item of itemsHitung) {
-    const isPromoFree = item.item_type === "promo_free";
-    const extended = item as PromoCartItem;
-    const pairIndex = extended._promo_pair_index ?? null;
-    const pairKey = item.menu_item_id && pairIndex !== null
-      ? `${item.menu_item_id}_${pairIndex}`
-      : null;
-
-    let triggered_by_item_id: string | null = null;
-    if (isPromoFree && pairKey) {
-      triggered_by_item_id = pairToId.get(pairKey) ?? null;
-    }
-
-    const { data: insertedItem, error: eItem } = await supabase
+  // 6) INSERT SEMUA item dalam SATU batch. Trigger grand_total & triggered_by
+  //    di-DEFER → dicek saat COMMIT, saat semua baris sudah ada (SUM cocok).
+  //    Self-FK triggered_by_item_id valid karena parent & child satu statement.
+  let insertedItems: TransactionItem[] = [];
+  if (prepared.length > 0) {
+    const { data, error: eItems } = await supabase
       .from("transaction_items")
-      .insert({
-        transaksi_id: trxRow.id,
-        umkm_id: umkmId,
-        menu_item_id: item.menu_item_id,
-        nama_produk: item.nama_produk,
-        harga_satuan: item.harga_satuan,
-        qty: item.qty,
-        item_type: item.item_type,
-        diskon_persen: item.diskon_persen,
-        diskon_preset_id: item.diskon_preset_id,
-        triggered_by_item_id,
-        final_price_item: item.final_price_item,
-      })
-      .select()
-      .single();
+      .insert(prepared.map((p) => p.row))
+      .select();
 
-    if (eItem || !insertedItem) {
-      // Rollback sederhana — void header
-      await supabase.from("transaksi").update({
-        status: "void",
-        void_by: kasirId,
-        void_at: new Date().toISOString(),
-        void_reason: "Rollback: gagal INSERT items",
-      }).eq("id", trxRow.id);
-      throw eItem ?? new Error("Gagal INSERT item");
+    if (eItems || !data) {
+      // [FIX B8] Rollback bersih: hapus header, item ikut CASCADE (FIX B3 di SQL).
+      await supabase.from("transaksi").delete().eq("id", transaksiId);
+      throw eItems ?? new Error("Gagal menyimpan item transaksi");
     }
-
-    if (!isPromoFree && pairKey) {
-      pairToId.set(pairKey, insertedItem.id);
-    }
-
-    insertedItems.push(insertedItem as TransactionItem);
+    insertedItems = data as TransactionItem[];
   }
 
   return { trx: trxRow as Transaksi, items: insertedItems };

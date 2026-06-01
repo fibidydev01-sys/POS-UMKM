@@ -20,10 +20,11 @@ export function CartLine({
         <p className="text-sm text-muted-foreground">{formatRupiah(item.harga_satuan)}</p>
       </div>
       <div className="flex items-center gap-1.5">
+        {/* [FIX U6] h-11 w-11 (44px) — target sentuh nyaman di mobile/tablet (dulu 32px). */}
         <Button
           variant="outline"
           size="icon"
-          className="h-8 w-8"
+          className="h-11 w-11"
           onClick={() => onUbahQty(item.menu_item_id, -1)}
           aria-label="Kurangi"
         >
@@ -33,7 +34,7 @@ export function CartLine({
         <Button
           variant="outline"
           size="icon"
-          className="h-8 w-8"
+          className="h-11 w-11"
           onClick={() => onUbahQty(item.menu_item_id, 1)}
           aria-label="Tambah"
         >

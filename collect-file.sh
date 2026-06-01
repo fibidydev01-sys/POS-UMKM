@@ -1,312 +1,293 @@
-#!/bin/bash
-# ================================================================
-# collect-files.sh — POS UMKM MVP File Collector
-# Run from: d:/BOILERPLATE/pos-umkm-mvp
-# Output  : collection/COLLECT-<timestamp>.txt
-#           collection/typecheck-<timestamp>.txt
-#           collection/lint-<timestamp>.txt
-# Skip    : src/components/ui/, favicon.ico
-# ================================================================
+#!/usr/bin/env bash
+# ============================================================
+#  collect-file.sh  —  POS UMKM MVP Source Collector
+#  Usage:
+#    ./collect-file.sh                  # interactive mode
+#    ./collect-file.sh --module root
+#    ./collect-file.sh --module aktivasi
+#    ./collect-file.sh --module dashboard
+#    ./collect-file.sh --module kasir
+#    ./collect-file.sh --module menu
+#    ./collect-file.sh --module riwayat
+#    ./collect-file.sh --module pengaturan
+#    ./collect-file.sh --module all
+# ============================================================
 
-SRC="./src"
-OUT="collection"
-mkdir -p "$OUT"
+set -euo pipefail
 
-BOLD='\033[1m'
-CYAN='\033[0;36m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-RESET='\033[0m'
+OUTDIR="collection"
+TIMESTAMP=$(date "+%Y%m%d-%H%M%S")
+MODULE=""
 
-echo ""
-echo -e "${BOLD}╔══════════════════════════════════════════════════════╗${RESET}"
-echo -e "${BOLD}║           FILE COLLECTOR — POS UMKM MVP              ║${RESET}"
-echo -e "${BOLD}╠══════════════════════════════════════════════════════╣${RESET}"
-echo -e "${BOLD}║  LAYERS                                              ║${RESET}"
-echo -e "${BOLD}║  1.${RESET}  ${CYAN}src/app/${RESET}                                   ${BOLD}║${RESET}"
-echo -e "${BOLD}║  2.${RESET}  ${CYAN}src/components/aktivasi/${RESET}                   ${BOLD}║${RESET}"
-echo -e "${BOLD}║  3.${RESET}  ${CYAN}src/components/dashboard/${RESET}                  ${BOLD}║${RESET}"
-echo -e "${BOLD}║  4.${RESET}  ${CYAN}src/components/kasir/${RESET}                      ${BOLD}║${RESET}"
-echo -e "${BOLD}║  5.${RESET}  ${CYAN}src/components/menu/${RESET}                       ${BOLD}║${RESET}"
-echo -e "${BOLD}║  6.${RESET}  ${CYAN}src/components/pengaturan/${RESET}                 ${BOLD}║${RESET}"
-echo -e "${BOLD}║  7.${RESET}  ${CYAN}src/components/riwayat/${RESET}                    ${BOLD}║${RESET}"
-echo -e "${BOLD}║  8.${RESET}  ${CYAN}src/components/shared/${RESET}                     ${BOLD}║${RESET}"
-echo -e "${BOLD}║  9.${RESET}  ${CYAN}src/hooks/${RESET}                                 ${BOLD}║${RESET}"
-echo -e "${BOLD}║  10.${RESET} ${CYAN}src/store/${RESET}                                 ${BOLD}║${RESET}"
-echo -e "${BOLD}║  11.${RESET} ${CYAN}src/lib/cart/${RESET}                              ${BOLD}║${RESET}"
-echo -e "${BOLD}║  12.${RESET} ${CYAN}src/lib/db/${RESET}                                ${BOLD}║${RESET}"
-echo -e "${BOLD}║  13.${RESET} ${CYAN}src/lib/export/${RESET}                            ${BOLD}║${RESET}"
-echo -e "${BOLD}║  14.${RESET} ${CYAN}src/lib/supabase/${RESET}                          ${BOLD}║${RESET}"
-echo -e "${BOLD}║  15.${RESET} ${CYAN}src/lib/utils/ ${YELLOW}+ src/lib/utils.ts${RESET}        ${BOLD}║${RESET}"
-echo -e "${BOLD}║  16.${RESET} ${CYAN}src/lib/config/${RESET}                            ${BOLD}║${RESET}"
-echo -e "${BOLD}║  17.${RESET} ${CYAN}src/proxy.ts${RESET}                               ${BOLD}║${RESET}"
-echo -e "${BOLD}║                                                      ║${RESET}"
-echo -e "${BOLD}║  88.${RESET} ${GREEN}ALL COMPONENTS (2–8)${RESET}                       ${BOLD}║${RESET}"
-echo -e "${BOLD}║  77.${RESET} ${GREEN}ALL LIB (11–16)${RESET}                            ${BOLD}║${RESET}"
-echo -e "${BOLD}║  99.${RESET} ${GREEN}ALL LAYERS (everything)${RESET}                    ${BOLD}║${RESET}"
-echo -e "${BOLD}╚══════════════════════════════════════════════════════╝${RESET}"
-echo ""
-echo -e "${YELLOW}Pilih layer (contoh: 1 atau 1 3 5 atau 99):${RESET} "
-read -r INPUT
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --module)
+      MODULE="${2:-}"
+      shift 2
+      ;;
+    *)
+      echo "Unknown arg: $1" >&2
+      exit 1
+      ;;
+  esac
+done
 
-TIMESTAMP=$(date '+%Y%m%d-%H%M%S')
-FILE="$OUT/COLLECT-${TIMESTAMP}.txt"
-TC_FILE="$OUT/typecheck-${TIMESTAMP}.txt"
-LINT_FILE="$OUT/lint-${TIMESTAMP}.txt"
-FOUND=0; MISSING=0; TOTAL=0
+# ── Interactive picker ────────────────────────────────────────
+if [[ -z "$MODULE" ]]; then
+  echo ""
+  echo "┌─────────────────────────────────────┐"
+  echo "│   POS UMKM — Source Collector       │"
+  echo "├─────────────────────────────────────┤"
+  echo "│  Pilih module yang ingin di-collect  │"
+  echo "├─────┬───────────────────────────────┤"
+  echo "│  0  │  all         (semua file)      │"
+  echo "│  1  │  root        (shared/core)     │"
+  echo "│  2  │  aktivasi                      │"
+  echo "│  3  │  dashboard                     │"
+  echo "│  4  │  kasir                         │"
+  echo "│  5  │  menu                          │"
+  echo "│  6  │  riwayat                       │"
+  echo "│  7  │  pengaturan                    │"
+  echo "└─────┴───────────────────────────────┘"
+  echo ""
+  read -rp "  Pilih [0-7]: " PICK
 
-# ── typecheck + lint dulu sebelum collect ────────────────────────
-echo ""
-echo -e "${BOLD}▶ Running typecheck...${RESET}"
-pnpm run typecheck 2>&1 | tee "$TC_FILE"
-TC_EXIT=${PIPESTATUS[0]}
-if [ $TC_EXIT -eq 0 ]; then
-  echo -e "  ${GREEN}✓ Typecheck PASSED${RESET}"
-else
-  echo -e "  ${RED}✗ Typecheck FAILED — lihat $TC_FILE${RESET}"
+  case "$PICK" in
+    0) MODULE="all"        ;;
+    1) MODULE="root"       ;;
+    2) MODULE="aktivasi"   ;;
+    3) MODULE="dashboard"  ;;
+    4) MODULE="kasir"      ;;
+    5) MODULE="menu"       ;;
+    6) MODULE="riwayat"    ;;
+    7) MODULE="pengaturan" ;;
+    *)
+      echo ""
+      echo "❌  Pilihan tidak valid: '$PICK'"
+      exit 1
+      ;;
+  esac
+  echo ""
 fi
 
-echo ""
-echo -e "${BOLD}▶ Running lint...${RESET}"
-pnpm run lint 2>&1 | tee "$LINT_FILE"
-LINT_EXIT=${PIPESTATUS[0]}
-if [ $LINT_EXIT -eq 0 ]; then
-  echo -e "  ${GREEN}✓ Lint PASSED${RESET}"
-else
-  echo -e "  ${RED}✗ Lint FAILED — lihat $LINT_FILE${RESET}"
+# ── Validate module ───────────────────────────────────────────
+VALID_MODULES="root aktivasi dashboard kasir menu riwayat pengaturan all"
+if ! echo "$VALID_MODULES" | grep -qw "$MODULE"; then
+  echo "❌  Module tidak dikenal: '$MODULE'"
+  echo "    Pilihan: $VALID_MODULES"
+  exit 1
 fi
 
-echo ""
-echo -e "${BOLD}▶ Collecting source files...${RESET}"
+OUTFILE="$OUTDIR/COLLECT-${TIMESTAMP}.txt"
+mkdir -p "$OUTDIR"
+
+# ── Scope definitions ────────────────────────────────────────
+
+declare -A SCOPE
+
+SCOPE[root]="
+  src/app/page.tsx
+  src/app/layout.tsx
+  src/app/globals.css
+  src/app/api
+  src/proxy.ts
+  src/lib/config
+  src/lib/supabase
+  src/lib/utils.ts
+  src/lib/utils
+  src/lib/db/config.ts
+  src/lib/db/transaksi.ts
+  src/lib/db/users.ts
+  src/components/shared
+"
+
+SCOPE[aktivasi]="
+  src/app/aktivasi
+  src/components/aktivasi
+  src/hooks/use-current-user.ts
+  src/lib/db/users.ts
+  src/lib/utils/umkm-id.ts
+"
+
+SCOPE[dashboard]="
+  src/app/dashboard
+  src/components/dashboard
+  src/hooks/use-dashboard-data.ts
+  src/lib/db/omzet-banding.ts
+  src/lib/db/transaksi.ts
+"
+
+SCOPE[kasir]="
+  src/app/kasir
+  src/components/kasir
+  src/hooks/use-kasir-data.ts
+  src/lib/cart
+  src/store/cart-store.ts
+  src/lib/db/transaksi.ts
+  src/lib/db/diskon-preset.ts
+  src/lib/db/promo-rule.ts
+"
+
+SCOPE[menu]="
+  src/app/menu
+  src/components/menu
+  src/hooks/use-menu-manager.ts
+  src/lib/db/menu.ts
+"
+
+SCOPE[riwayat]="
+  src/app/riwayat
+  src/components/riwayat
+  src/hooks/use-riwayat.ts
+  src/lib/db/transaksi.ts
+"
+
+SCOPE[pengaturan]="
+  src/app/pengaturan
+  src/components/pengaturan
+  src/lib/db/diskon-preset.ts
+  src/lib/db/promo-rule.ts
+  src/lib/export
+"
+
+SCOPE[all]="
+  src/app
+  src/components
+  src/hooks
+  src/lib
+  src/store
+  src/proxy.ts
+"
+
+# ── Helpers ───────────────────────────────────────────────────
+is_text_file() {
+  local ext="${1##*.}"
+  case "$ext" in
+    ts|tsx|js|jsx|css|json|md|sql|sh|mjs|cjs|yaml|yml|toml|txt) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+should_skip() {
+  local f="$1"
+  local base
+  base=$(basename "$f")
+  [[ "$f" == *"/node_modules/"* ]] && return 0
+  [[ "$f" == *"/.next/"* ]]        && return 0
+  [[ "$f" == *"/out/"* ]]          && return 0
+  [[ "$f" == *"/build/"* ]]        && return 0
+  [[ "$f" == *"/.git/"* ]]         && return 0
+  [[ "$base" == "favicon.ico" ]]   && return 0
+  [[ "$base" == *.test.* ]]        && return 0
+  [[ "$base" == *.spec.* ]]        && return 0
+  return 1
+}
+
+is_ui_dir() {
+  [[ "$1" == *"/components/ui/"* || "$1" == *"/components/ui" ]] && return 0
+  return 1
+}
+
+collect_path() {
+  local root="$1"
+  local buf="$2"
+
+  if [[ -f "$root" ]]; then
+    should_skip "$root"  && return
+    is_ui_dir "$root"    && return
+    is_text_file "$root" || return
+    echo "$root" >> "$buf"
+    return
+  fi
+
+  if [[ -d "$root" ]]; then
+    while IFS= read -r -d '' f; do
+      should_skip "$f"  && continue
+      is_ui_dir "$f"    && continue
+      is_text_file "$f" || continue
+      echo "$f" >> "$buf"
+    done < <(find "$root" -type f -print0 | sort -z)
+  fi
+}
+
+# ── Build file list ───────────────────────────────────────────
+LISTFILE=$(mktemp)
+trap 'rm -f "$LISTFILE"' EXIT
+
+for p in ${SCOPE[$MODULE]}; do
+  p="${p#"${p%%[! ]*}"}"
+  [[ -z "$p" ]] && continue
+  collect_path "$p" "$LISTFILE"
+done
+
+sort -u "$LISTFILE" -o "$LISTFILE"
+TOTAL=$(wc -l < "$LISTFILE" | tr -d ' ')
+
+# ── Write output ──────────────────────────────────────────────
+MODULE_UPPER=$(echo "$MODULE" | tr '[:lower:]' '[:upper:]')
 
 {
-echo "################################################################"
-echo "##  POS UMKM MVP — SOURCE COLLECTION"
-echo "##  Generated  : $(date '+%Y-%m-%d %H:%M:%S')"
-echo "##  Selection  : $INPUT"
-echo "##  Typecheck  : $([ $TC_EXIT -eq 0 ] && echo PASSED || echo FAILED)"
-echo "##  Lint       : $([ $LINT_EXIT -eq 0 ] && echo PASSED || echo FAILED)"
-echo "##  Skipped    : src/components/ui/, favicon.ico"
-echo "################################################################"
-echo ""
-} > "$FILE"
+  echo "################################################################"
+  echo "##  POS UMKM MVP — SOURCE COLLECTION"
+  echo "##  Generated  : $(date '+%Y-%m-%d %H:%M:%S')"
+  echo "##  Module     : $MODULE_UPPER"
+  echo "##  Selection  : $TOTAL"
+  echo "##  Skipped    : src/components/ui/, favicon.ico"
+  echo "################################################################"
+  echo ""
+} > "$OUTFILE"
 
-# ── helper: collect single file ──────────────────────────────────
-cf() {
-    local f="$1"
-    TOTAL=$((TOTAL + 1))
+FOUND=0
+MISSING=0
+PREV_GROUP=""
+
+while IFS= read -r filepath; do
+  [[ -z "$filepath" ]] && continue
+
+  if [[ ! -f "$filepath" ]]; then
+    ((MISSING++)) || true
+    continue
+  fi
+
+  GROUP=$(dirname "$filepath")
+  if [[ "$GROUP" != "$PREV_GROUP" ]]; then
     {
-    echo ""
+      echo ""
+      echo "################################################################"
+      echo "##  $GROUP/"
+      echo "################################################################"
+      echo ""
+    } >> "$OUTFILE"
+    PREV_GROUP="$GROUP"
+  fi
+
+  LINECOUNT=$(wc -l < "$filepath" | tr -d ' ')
+  {
     echo "================================================"
-    echo "FILE: ${f#./}"
-    } >> "$FILE"
-    if [ -f "$f" ]; then
-        local lines; lines=$(wc -l < "$f" 2>/dev/null || echo "0")
-        echo -e "  ${GREEN}✓${RESET} ${f#./} (${lines} lines)"
-        FOUND=$((FOUND + 1))
-        {
-        echo "Lines: $lines"
-        echo "================================================"
-        echo ""
-        cat "$f"
-        printf "\n\n"
-        } >> "$FILE"
-    else
-        echo -e "  ${RED}✗${RESET} MISSING: ${f#./}"
-        MISSING=$((MISSING + 1))
-        {
-        echo "STATUS: *** FILE NOT FOUND ***"
-        echo "================================================"
-        echo ""
-        } >> "$FILE"
-    fi
-}
-
-# ── helper: section header ────────────────────────────────────────
-sec() {
-    local label="$1"
-    echo -e "\n${BOLD}▶ $label${RESET}"
-    {
+    echo "FILE: $filepath"
+    echo "Lines: $LINECOUNT"
+    echo "================================================"
     echo ""
-    echo "################################################################"
-    echo "##  $label"
-    echo "################################################################"
+    cat "$filepath"
     echo ""
-    } >> "$FILE"
-}
+    echo ""
+  } >> "$OUTFILE"
 
-# ── layer definitions ─────────────────────────────────────────────
-run_layer() {
-    case "$1" in
-        1)
-            sec "src/app/"
-            cf "$SRC/app/globals.css"
-            cf "$SRC/app/layout.tsx"
-            cf "$SRC/app/page.tsx"
-            cf "$SRC/app/aktivasi/page.tsx"
-            cf "$SRC/app/api/aktivasi/route.ts"
-            cf "$SRC/app/dashboard/page.tsx"
-            cf "$SRC/app/kasir/page.tsx"
-            cf "$SRC/app/menu/page.tsx"
-            cf "$SRC/app/pengaturan/page.tsx"
-            cf "$SRC/app/pengaturan/diskon/page.tsx"
-            cf "$SRC/app/pengaturan/promo/page.tsx"
-            cf "$SRC/app/riwayat/page.tsx"
-            ;;
-        2)
-            sec "src/components/aktivasi/"
-            cf "$SRC/components/aktivasi/aktivasi-view.tsx"
-            ;;
-        3)
-            sec "src/components/dashboard/"
-            cf "$SRC/components/dashboard/chart-omzet.tsx"
-            cf "$SRC/components/dashboard/dashboard-view.tsx"
-            cf "$SRC/components/dashboard/stat-card.tsx"
-            cf "$SRC/components/dashboard/top-diskon.tsx"
-            ;;
-        4)
-            sec "src/components/kasir/"
-            cf "$SRC/components/kasir/cart-line.tsx"
-            cf "$SRC/components/kasir/cart-panel.tsx"
-            cf "$SRC/components/kasir/cart-summary.tsx"
-            cf "$SRC/components/kasir/discount-picker.tsx"
-            cf "$SRC/components/kasir/kasir-view.tsx"
-            cf "$SRC/components/kasir/layout-toggle.tsx"
-            cf "$SRC/components/kasir/menu-card.tsx"
-            cf "$SRC/components/kasir/menu-grid.tsx"
-            cf "$SRC/components/kasir/payment-method.tsx"
-            cf "$SRC/components/kasir/struk-dialog.tsx"
-            cf "$SRC/components/kasir/struk-print.tsx"
-            ;;
-        5)
-            sec "src/components/menu/"
-            cf "$SRC/components/menu/category-badge.tsx"
-            cf "$SRC/components/menu/form-menu-item.tsx"
-            cf "$SRC/components/menu/kategori-list.tsx"
-            cf "$SRC/components/menu/menu-item-card.tsx"
-            cf "$SRC/components/menu/menu-view.tsx"
-            ;;
-        6)
-            sec "src/components/pengaturan/"
-            cf "$SRC/components/pengaturan/diskon-view.tsx"
-            cf "$SRC/components/pengaturan/form-diskon-preset.tsx"
-            cf "$SRC/components/pengaturan/form-promo-rule.tsx"
-            cf "$SRC/components/pengaturan/pengaturan-view.tsx"
-            cf "$SRC/components/pengaturan/promo-view.tsx"
-            ;;
-        7)
-            sec "src/components/riwayat/"
-            cf "$SRC/components/riwayat/riwayat-view.tsx"
-            cf "$SRC/components/riwayat/transaksi-detail.tsx"
-            cf "$SRC/components/riwayat/transaksi-row.tsx"
-            ;;
-        8)
-            sec "src/components/shared/"
-            cf "$SRC/components/shared/alert-backup.tsx"
-            cf "$SRC/components/shared/app-shell.tsx"
-            cf "$SRC/components/shared/app-sidebar.tsx"
-            cf "$SRC/components/shared/confirm-dialog.tsx"
-            cf "$SRC/components/shared/form-drawer.tsx"
-            cf "$SRC/components/shared/mobile-nav.tsx"
-            cf "$SRC/components/shared/nav-config.ts"
-            cf "$SRC/components/shared/page-skeleton.tsx"
-            ;;
-        9)
-            sec "src/hooks/"
-            cf "$SRC/hooks/use-current-user.ts"
-            cf "$SRC/hooks/use-dashboard-data.ts"
-            cf "$SRC/hooks/use-kasir-data.ts"
-            cf "$SRC/hooks/use-media-query.ts"
-            cf "$SRC/hooks/use-menu-manager.ts"
-            cf "$SRC/hooks/use-riwayat.ts"
-            ;;
-        10)
-            sec "src/store/"
-            cf "$SRC/store/cart-store.ts"
-            ;;
-        11)
-            sec "src/lib/cart/"
-            cf "$SRC/lib/cart/promo-engine.ts"
-            ;;
-        12)
-            sec "src/lib/db/"
-            cf "$SRC/lib/db/config.ts"
-            cf "$SRC/lib/db/diskon-preset.ts"
-            cf "$SRC/lib/db/menu.ts"
-            cf "$SRC/lib/db/omzet-banding.ts"
-            cf "$SRC/lib/db/promo-rule.ts"
-            cf "$SRC/lib/db/transaksi.ts"
-            cf "$SRC/lib/db/users.ts"
-            ;;
-        13)
-            sec "src/lib/export/"
-            cf "$SRC/lib/export/excel.ts"
-            cf "$SRC/lib/export/import.ts"
-            ;;
-        14)
-            sec "src/lib/supabase/"
-            cf "$SRC/lib/supabase/client.ts"
-            cf "$SRC/lib/supabase/server.ts"
-            ;;
-        15)
-            sec "src/lib/utils/ + src/lib/utils.ts"
-            cf "$SRC/lib/utils/currency.ts"
-            cf "$SRC/lib/utils/date.ts"
-            cf "$SRC/lib/utils/paper.ts"
-            cf "$SRC/lib/utils/umkm-id.ts"
-            cf "$SRC/lib/utils.ts"
-            ;;
-        16)
-            sec "src/lib/config/"
-            cf "$SRC/lib/config/features.ts"
-            ;;
-        17)
-            sec "src/proxy.ts"
-            cf "$SRC/proxy.ts"
-            ;;
-        *)
-            echo -e "  ${RED}⚠ Pilihan tidak valid: $1${RESET}"
-            ;;
-    esac
-}
+  ((FOUND++)) || true
 
-# ── dispatch ──────────────────────────────────────────────────────
-if echo "$INPUT" | grep -qw "99"; then
-    for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17; do run_layer $i; done
-elif echo "$INPUT" | grep -qw "88"; then
-    for i in 2 3 4 5 6 7 8; do run_layer $i; done
-elif echo "$INPUT" | grep -qw "77"; then
-    for i in 11 12 13 14 15 16; do run_layer $i; done
-else
-    for i in $INPUT; do run_layer "$i"; done
-fi
-
-# ── summary ───────────────────────────────────────────────────────
-pct=0; [ $TOTAL -gt 0 ] && pct=$(( FOUND * 100 / TOTAL ))
-
-echo ""
-echo -e "${BOLD}════════════════════════════════════${RESET}"
-echo -e "  ${GREEN}✓ Found   : $FOUND / $TOTAL${RESET}"
-echo -e "  ${RED}✗ Missing : $MISSING${RESET}"
-echo -e "  Coverage  : $pct%"
-echo -e "${BOLD}────────────────────────────────────${RESET}"
-echo -e "  Typecheck : $([ $TC_EXIT -eq 0 ] && echo -e "${GREEN}PASSED${RESET}" || echo -e "${RED}FAILED${RESET}")"
-echo -e "  Lint      : $([ $LINT_EXIT -eq 0 ] && echo -e "${GREEN}PASSED${RESET}" || echo -e "${RED}FAILED${RESET}")"
-echo -e "${BOLD}════════════════════════════════════${RESET}"
-echo -e "  Collect : ${CYAN}$FILE${RESET}"
-echo -e "  TC      : ${CYAN}$TC_FILE${RESET}"
-echo -e "  Lint    : ${CYAN}$LINT_FILE${RESET}"
-echo ""
+done < "$LISTFILE"
 
 {
+  echo "################################################################"
+  echo "##  SUMMARY"
+  echo "################################################################"
+  echo "Found     : $FOUND / $TOTAL"
+  echo "Missing   : $MISSING"
+  echo "Coverage  : $(( TOTAL > 0 ? FOUND * 100 / TOTAL : 0 ))%"
+} >> "$OUTFILE"
+
+echo "✅  Done!"
+echo "   Module  : $MODULE_UPPER"
+echo "   Files   : $FOUND collected, $MISSING missing"
+echo "   Output  : $OUTFILE"
 echo ""
-echo "################################################################"
-echo "##  SUMMARY"
-echo "################################################################"
-echo "Found     : $FOUND / $TOTAL"
-echo "Missing   : $MISSING"
-echo "Coverage  : $pct%"
-echo "Typecheck : $([ $TC_EXIT -eq 0 ] && echo PASSED || echo FAILED)"
-echo "Lint      : $([ $LINT_EXIT -eq 0 ] && echo PASSED || echo FAILED)"
-} >> "$FILE"

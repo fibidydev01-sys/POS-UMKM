@@ -2,6 +2,11 @@ node_modules
 /.next/
 /out/
 /build
+
+# Local docs & collection output
+/docs/
+/collection/
+
 .DS_Store
 *.pem
 npm-debug.log*
